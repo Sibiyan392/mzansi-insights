@@ -17,12 +17,16 @@ import requests
 import sys
 import io
 import logging
-import fix_cgi
+from pathlib import Path
 
 # Fix Unicode encoding for Windows console
 if sys.platform == "win32":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # ============= FLASK CONFIG =============
 class FlaskConfig:
@@ -30,11 +34,11 @@ class FlaskConfig:
     SITE_NAME = "Mzansi Insights"
     SITE_DESCRIPTION = "South African News & Updates - Aggregated from Trusted Sources"
     POSTS_PER_PAGE = 12
-    ADMIN_USERNAME = 'admin'
-    ADMIN_PASSWORD = 'admin123'
+    ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
+    ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
     
     # Adsense IDs (EMPTY - YOU MUST GET YOUR OWN FROM GOOGLE)
-    ADSENSE_ID = "YOUR_ADSENSE_ID_HERE"  # REPLACE WITH YOUR ACTUAL ID
+    ADSENSE_ID = os.environ.get('ADSENSE_ID', 'YOUR_ADSENSE_ID_HERE')  # REPLACE WITH YOUR ACTUAL ID
     ADSENSE_SLOT_BANNER = "1234567890"
     ADSENSE_SLOT_INARTICLE = "1234567891"
     ADSENSE_SLOT_SQUARE = "1234567892"
@@ -44,13 +48,13 @@ class FlaskConfig:
     ADSENSE_SLOT_INFEED = "1234567896"
     
     # Adsense Compliance Requirements
-    CONTACT_EMAIL = "contact@mzansi-insights.co.za"
-    CONTACT_PHONE = "+27 11 123 4567"
-    PHYSICAL_ADDRESS = "Johannesburg, South Africa"
-    SITE_URL = "https://mzansi-insights.co.za"
+    CONTACT_EMAIL = os.environ.get('CONTACT_EMAIL', 'contact@mzansi-insights.co.za')
+    CONTACT_PHONE = os.environ.get('CONTACT_PHONE', '+27 11 123 4567')
+    PHYSICAL_ADDRESS = os.environ.get('PHYSICAL_ADDRESS', 'Johannesburg, South Africa')
+    SITE_URL = os.environ.get('SITE_URL', 'https://mzansi-insights.onrender.com')
     
     # Content Update Configuration
-    UPDATE_INTERVAL_MINUTES = 30
+    UPDATE_INTERVAL_MINUTES = int(os.environ.get('UPDATE_INTERVAL_MINUTES', 30))
     MAX_SOURCES = 15
     
     # ENHANCED News Sources Configuration with MORE sources
@@ -197,7 +201,7 @@ CATEGORY_DEFINITIONS = {
         'description': 'Movies, music, celebrities, arts, culture, and entertainment industry news',
         'icon': 'film',
         'color': '#ef476f',
-        'keywords': ['entertainment', 'movie', 'music', 'celebrity', 'film', 'show', 'art', 'culture']
+        'keywords': ['ent entertainment', 'movie', 'music', 'celebrity', 'film', 'show', 'art', 'culture']
     },
     'business': {
         'name': 'Business',
@@ -250,11 +254,26 @@ CATEGORY_DEFINITIONS = {
 }
 
 # ============= DATABASE =============
+def get_db_path():
+    """Get the database path that works in both local and Render environments"""
+    if 'RENDER' in os.environ:
+        # On Render, use a persistent path
+        return '/tmp/posts.db'
+    else:
+        # Local development
+        os.makedirs('data', exist_ok=True)
+        return 'data/posts.db'
+
 def setup_database():
     """Initialize database with proper tables and categories"""
-    os.makedirs('data', exist_ok=True)
+    db_path = get_db_path()
     
-    conn = sqlite3.connect('data/posts.db')
+    # Create directory if it doesn't exist
+    if '/' in db_path:
+        db_dir = os.path.dirname(db_path)
+        os.makedirs(db_dir, exist_ok=True)
+    
+    conn = sqlite3.connect(db_path)
     c = conn.cursor()
     
     # Users table
@@ -330,7 +349,8 @@ def setup_database():
 
 def get_db_connection():
     """Get database connection with row factory"""
-    conn = sqlite3.connect('data/posts.db')
+    db_path = get_db_path()
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -647,363 +667,418 @@ def convert_post_row(row):
 @app.route('/')
 def index():
     """Homepage with latest posts"""
-    conn = get_db_connection()
-    
-    # Get all categories with post counts
-    categories = []
-    for cat_row in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
-        cat_dict = dict(cat_row)
-        post_count = conn.execute(
-            "SELECT COUNT(*) as count FROM posts WHERE category_id = ? AND is_published = 1",
-            (cat_dict['id'],)
-        ).fetchone()['count']
-        cat_dict['post_count'] = post_count
-        categories.append(cat_dict)
-    
-    # Get latest posts
-    posts_raw = conn.execute("""
-        SELECT * FROM posts 
-        WHERE is_published = 1 
-        ORDER BY created_at DESC 
-        LIMIT 24
-    """).fetchall()
-    
-    posts = [convert_post_row(row) for row in posts_raw]
-    
-    # Get trending posts (most viewed)
-    trending_raw = conn.execute("""
-        SELECT * FROM posts 
-        WHERE is_published = 1 
-        ORDER BY views DESC 
-        LIMIT 6
-    """).fetchall()
-    
-    trending_posts = [convert_post_row(row) for row in trending_raw]
-    
-    # Get sources with article counts
-    sources = []
-    for source in FlaskConfig.NEWS_SOURCES[:10]:
-        article_count = conn.execute(
-            "SELECT COUNT(*) as count FROM posts WHERE source_name = ?",
-            (source['name'],)
-        ).fetchone()['count']
+    try:
+        conn = get_db_connection()
         
-        sources.append({
-            **source,
-            'article_count': article_count
-        })
-    
-    conn.close()
-    
-    return render_template('index.html',
-                         posts=posts,
-                         trending_posts=trending_posts,
-                         categories=categories,
-                         sources=sources,
-                         config=FlaskConfig,
-                         now=datetime.now())
+        # Get all categories with post counts
+        categories = []
+        for cat_row in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
+            cat_dict = dict(cat_row)
+            post_count = conn.execute(
+                "SELECT COUNT(*) as count FROM posts WHERE category_id = ? AND is_published = 1",
+                (cat_dict['id'],)
+            ).fetchone()['count']
+            cat_dict['post_count'] = post_count
+            categories.append(cat_dict)
+        
+        # Get latest posts
+        posts_raw = conn.execute("""
+            SELECT * FROM posts 
+            WHERE is_published = 1 
+            ORDER BY created_at DESC 
+            LIMIT 24
+        """).fetchall()
+        
+        posts = [convert_post_row(row) for row in posts_raw]
+        
+        # Get trending posts (most viewed)
+        trending_raw = conn.execute("""
+            SELECT * FROM posts 
+            WHERE is_published = 1 
+            ORDER BY views DESC 
+            LIMIT 6
+        """).fetchall()
+        
+        trending_posts = [convert_post_row(row) for row in trending_raw]
+        
+        # Get sources with article counts
+        sources = []
+        for source in FlaskConfig.NEWS_SOURCES[:10]:
+            article_count = conn.execute(
+                "SELECT COUNT(*) as count FROM posts WHERE source_name = ?",
+                (source['name'],)
+            ).fetchone()['count']
+            
+            sources.append({
+                **source,
+                'article_count': article_count
+            })
+        
+        conn.close()
+        
+        return render_template('index.html',
+                             posts=posts,
+                             trending_posts=trending_posts,
+                             categories=categories,
+                             sources=sources,
+                             config=FlaskConfig,
+                             now=datetime.now())
+    except Exception as e:
+        logger.error(f"Error in index route: {e}")
+        return render_template('500.html', config=FlaskConfig), 500
 
 @app.route('/category/<slug>')
 def category_page(slug):
     """Category page - keeping original route name"""
-    conn = get_db_connection()
-    
-    # Get category
-    category_row = conn.execute("SELECT * FROM categories WHERE slug = ?", (slug,)).fetchone()
-    if not category_row:
-        conn.close()
-        return render_template('404.html', config=FlaskConfig), 404
-    
-    category = {key: category_row[key] for key in category_row.keys()}
-    
-    # Pagination setup
-    page = request.args.get('page', 1, type=int)
-    limit = FlaskConfig.POSTS_PER_PAGE
-    offset = (page - 1) * limit
-    
-    # Get posts in category with full info
-    posts_raw = conn.execute("""
-        SELECT p.*, c.name as category_name, c.slug as category_slug,
-               c.icon as category_icon, c.color as category_color
-        FROM posts p 
-        LEFT JOIN categories c ON p.category_id = c.id 
-        WHERE p.category_id = ? AND p.is_published = 1 
-        ORDER BY p.created_at DESC 
-        LIMIT ? OFFSET ?
-    """, (category['id'], limit, offset)).fetchall()
-    
-    posts = [convert_post_row(row) for row in posts_raw]
-    
-    # Count total for pagination
-    total = conn.execute(
-        "SELECT COUNT(*) FROM posts WHERE category_id = ? AND is_published = 1", 
-        (category['id'],)
-    ).fetchone()[0]
-    pages = (total + limit - 1) // limit
-    
-    # Get all categories WITH post counts
-    categories = []
-    for row in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
-        cat_dict = {key: row[key] for key in row.keys()}
-        # Get post count for this category
-        post_count = conn.execute(
-            "SELECT COUNT(*) as count FROM posts WHERE category_id = ? AND is_published = 1",
-            (cat_dict['id'],)
-        ).fetchone()['count']
-        cat_dict['post_count'] = post_count
-        categories.append(cat_dict)
-    
-    conn.close()
-    
-    # Simple pagination object
-    class Pagination:
-        def __init__(self, items, page, pages, total):
-            self.items = items
-            self.page = page
-            self.pages = pages
-            self.total = total
-            self.has_prev = page > 1
-            self.has_next = page < pages
+    try:
+        conn = get_db_connection()
         
-        def iter_pages(self):
-            page_numbers = []
-            for num in range(1, min(6, self.pages + 1)):
-                page_numbers.append(num)
-            if self.pages > 6:
-                page_numbers.append(None)
-                page_numbers.append(self.pages)
-            return page_numbers
-    
-    pagination = Pagination(posts, page, pages, total) if pages > 1 else None
-    
-    return render_template('category.html',
-                         category=category,
-                         posts=posts,
-                         categories=categories,
-                         pagination=pagination,
-                         config=FlaskConfig,
-                         now=datetime.now())
+        # Get category
+        category_row = conn.execute("SELECT * FROM categories WHERE slug = ?", (slug,)).fetchone()
+        if not category_row:
+            conn.close()
+            return render_template('404.html', config=FlaskConfig), 404
+        
+        category = {key: category_row[key] for key in category_row.keys()}
+        
+        # Pagination setup
+        page = request.args.get('page', 1, type=int)
+        limit = FlaskConfig.POSTS_PER_PAGE
+        offset = (page - 1) * limit
+        
+        # Get posts in category with full info
+        posts_raw = conn.execute("""
+            SELECT p.*, c.name as category_name, c.slug as category_slug,
+                   c.icon as category_icon, c.color as category_color
+            FROM posts p 
+            LEFT JOIN categories c ON p.category_id = c.id 
+            WHERE p.category_id = ? AND p.is_published = 1 
+            ORDER BY p.created_at DESC 
+            LIMIT ? OFFSET ?
+        """, (category['id'], limit, offset)).fetchall()
+        
+        posts = [convert_post_row(row) for row in posts_raw]
+        
+        # Count total for pagination
+        total = conn.execute(
+            "SELECT COUNT(*) FROM posts WHERE category_id = ? AND is_published = 1", 
+            (category['id'],)
+        ).fetchone()[0]
+        pages = (total + limit - 1) // limit
+        
+        # Get all categories WITH post counts
+        categories = []
+        for row in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
+            cat_dict = {key: row[key] for key in row.keys()}
+            # Get post count for this category
+            post_count = conn.execute(
+                "SELECT COUNT(*) as count FROM posts WHERE category_id = ? AND is_published = 1",
+                (cat_dict['id'],)
+            ).fetchone()['count']
+            cat_dict['post_count'] = post_count
+            categories.append(cat_dict)
+        
+        conn.close()
+        
+        # Simple pagination object
+        class Pagination:
+            def __init__(self, items, page, pages, total):
+                self.items = items
+                self.page = page
+                self.pages = pages
+                self.total = total
+                self.has_prev = page > 1
+                self.has_next = page < pages
+            
+            def iter_pages(self):
+                page_numbers = []
+                for num in range(1, min(6, self.pages + 1)):
+                    page_numbers.append(num)
+                if self.pages > 6:
+                    page_numbers.append(None)
+                    page_numbers.append(self.pages)
+                return page_numbers
+        
+        pagination = Pagination(posts, page, pages, total) if pages > 1 else None
+        
+        return render_template('category.html',
+                             category=category,
+                             posts=posts,
+                             categories=categories,
+                             pagination=pagination,
+                             config=FlaskConfig,
+                             now=datetime.now())
+    except Exception as e:
+        logger.error(f"Error in category_page route: {e}")
+        return render_template('500.html', config=FlaskConfig), 500
 
 @app.route('/post/<slug>')
 def post_detail(slug):
     """Individual post page"""
-    conn = get_db_connection()
-    
-    # Get post
-    post_raw = conn.execute("SELECT * FROM posts WHERE slug = ?", (slug,)).fetchone()
-    if not post_raw:
+    try:
+        conn = get_db_connection()
+        
+        # Get post
+        post_raw = conn.execute("SELECT * FROM posts WHERE slug = ?", (slug,)).fetchone()
+        if not post_raw:
+            conn.close()
+            return render_template('404.html', config=FlaskConfig), 404
+        
+        post = convert_post_row(post_raw)
+        
+        # Increment view count
+        conn.execute("UPDATE posts SET views = views + 1 WHERE slug = ?", (slug,))
+        conn.commit()
+        
+        # Get related posts from same category
+        related_raw = conn.execute("""
+            SELECT * FROM posts 
+            WHERE category_id = ? AND slug != ? AND is_published = 1 
+            ORDER BY RANDOM() 
+            LIMIT 6
+        """, (post['category_id'], slug)).fetchall()
+        
+        related_posts = [convert_post_row(row) for row in related_raw]
+        
+        # Get all categories
+        categories = conn.execute("SELECT * FROM categories").fetchall()
+        
         conn.close()
-        return "Post not found", 404
-    
-    post = convert_post_row(post_raw)
-    
-    # Increment view count
-    conn.execute("UPDATE posts SET views = views + 1 WHERE slug = ?", (slug,))
-    conn.commit()
-    
-    # Get related posts from same category
-    related_raw = conn.execute("""
-        SELECT * FROM posts 
-        WHERE category_id = ? AND slug != ? AND is_published = 1 
-        ORDER BY RANDOM() 
-        LIMIT 6
-    """, (post['category_id'], slug)).fetchall()
-    
-    related_posts = [convert_post_row(row) for row in related_raw]
-    
-    # Get all categories
-    categories = conn.execute("SELECT * FROM categories").fetchall()
-    
-    conn.close()
-    
-    return render_template('post.html',
-                         post=post,
-                         related_posts=related_posts,
-                         categories=categories,
-                         config=FlaskConfig,
-                         now=datetime.now())
+        
+        return render_template('post.html',
+                             post=post,
+                             related_posts=related_posts,
+                             categories=categories,
+                             config=FlaskConfig,
+                             now=datetime.now())
+    except Exception as e:
+        logger.error(f"Error in post_detail route: {e}")
+        return render_template('500.html', config=FlaskConfig), 500
 
 @app.route('/search')
 def search():
     """Search page"""
-    query = request.args.get('q', '')
-    conn = get_db_connection()
-    
-    if query:
-        # Search in title and content
-        posts_raw = conn.execute("""
-            SELECT * FROM posts 
-            WHERE (title LIKE ? OR content LIKE ? OR excerpt LIKE ?) 
-            AND is_published = 1 
-            ORDER BY created_at DESC 
-            LIMIT 50
-        """, (f'%{query}%', f'%{query}%', f'%{query}%')).fetchall()
+    try:
+        query = request.args.get('q', '')
+        conn = get_db_connection()
         
-        posts = [convert_post_row(row) for row in posts_raw]
-    else:
-        posts = []
-    
-    # Get all categories
-    categories = []
-    for row in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
-        cat_dict = {key: row[key] for key in row.keys()}
-        categories.append(cat_dict)
-    
-    conn.close()
-    
-    return render_template('search.html',
-                         query=query,
-                         posts=posts,
-                         categories=categories,
-                         config=FlaskConfig,
-                         now=datetime.now())
+        if query:
+            # Search in title and content
+            posts_raw = conn.execute("""
+                SELECT * FROM posts 
+                WHERE (title LIKE ? OR content LIKE ? OR excerpt LIKE ?) 
+                AND is_published = 1 
+                ORDER BY created_at DESC 
+                LIMIT 50
+            """, (f'%{query}%', f'%{query}%', f'%{query}%')).fetchall()
+            
+            posts = [convert_post_row(row) for row in posts_raw]
+        else:
+            posts = []
+        
+        # Get all categories
+        categories = []
+        for row in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
+            cat_dict = {key: row[key] for key in row.keys()}
+            categories.append(cat_dict)
+        
+        conn.close()
+        
+        return render_template('search.html',
+                             query=query,
+                             posts=posts,
+                             categories=categories,
+                             config=FlaskConfig,
+                             now=datetime.now())
+    except Exception as e:
+        logger.error(f"Error in search route: {e}")
+        return render_template('500.html', config=FlaskConfig), 500
 
 # ============= ADSENSE COMPLIANCE ROUTES (REQUIRED) =============
 @app.route('/privacy')
 def privacy():
     """Privacy Policy - REQUIRED for AdSense"""
-    conn = get_db_connection()
-    categories = []
-    for row in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
-        cat_dict = {key: row[key] for key in row.keys()}
-        categories.append(cat_dict)
-    conn.close()
-    return render_template('privacy.html', config=FlaskConfig, categories=categories, now=datetime.now())
+    try:
+        conn = get_db_connection()
+        categories = []
+        for row in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
+            cat_dict = {key: row[key] for key in row.keys()}
+            categories.append(cat_dict)
+        conn.close()
+        return render_template('privacy.html', config=FlaskConfig, categories=categories, now=datetime.now())
+    except Exception as e:
+        logger.error(f"Error in privacy route: {e}")
+        return render_template('privacy.html', config=FlaskConfig, categories=[], now=datetime.now())
 
 @app.route('/terms')
 def terms():
     """Terms of Service - REQUIRED for AdSense"""
-    conn = get_db_connection()
-    categories = []
-    for row in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
-        cat_dict = {key: row[key] for key in row.keys()}
-        categories.append(cat_dict)
-    conn.close()
-    return render_template('terms.html', config=FlaskConfig, categories=categories, now=datetime.now())
+    try:
+        conn = get_db_connection()
+        categories = []
+        for row in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
+            cat_dict = {key: row[key] for key in row.keys()}
+            categories.append(cat_dict)
+        conn.close()
+        return render_template('terms.html', config=FlaskConfig, categories=categories, now=datetime.now())
+    except Exception as e:
+        logger.error(f"Error in terms route: {e}")
+        return render_template('terms.html', config=FlaskConfig, categories=[], now=datetime.now())
 
 @app.route('/disclaimer')
 def disclaimer():
     """Disclaimer - RECOMMENDED for AdSense"""
-    conn = get_db_connection()
-    categories = []
-    for row in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
-        cat_dict = {key: row[key] for key in row.keys()}
-        categories.append(cat_dict)
-    conn.close()
-    return render_template('disclaimer.html', config=FlaskConfig, categories=categories, now=datetime.now())
+    try:
+        conn = get_db_connection()
+        categories = []
+        for row in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
+            cat_dict = {key: row[key] for key in row.keys()}
+            categories.append(cat_dict)
+        conn.close()
+        return render_template('disclaimer.html', config=FlaskConfig, categories=categories, now=datetime.now())
+    except Exception as e:
+        logger.error(f"Error in disclaimer route: {e}")
+        return render_template('disclaimer.html', config=FlaskConfig, categories=[], now=datetime.now())
 
 @app.route('/contact')
 def contact():
     """Contact Page - REQUIRED for AdSense"""
-    conn = get_db_connection()
-    categories = []
-    for row in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
-        cat_dict = {key: row[key] for key in row.keys()}
-        categories.append(cat_dict)
-    conn.close()
-    return render_template('contact.html', config=FlaskConfig, categories=categories, now=datetime.now())
+    try:
+        conn = get_db_connection()
+        categories = []
+        for row in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
+            cat_dict = {key: row[key] for key in row.keys()}
+            categories.append(cat_dict)
+        conn.close()
+        return render_template('contact.html', config=FlaskConfig, categories=categories, now=datetime.now())
+    except Exception as e:
+        logger.error(f"Error in contact route: {e}")
+        return render_template('contact.html', config=FlaskConfig, categories=[], now=datetime.now())
 
 @app.route('/about')
 def about():
     """About Page - Shows legitimacy"""
-    conn = get_db_connection()
-    categories = []
-    for row in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
-        cat_dict = {key: row[key] for key in row.keys()}
-        categories.append(cat_dict)
-    conn.close()
-    return render_template('about.html', config=FlaskConfig, categories=categories, now=datetime.now())
+    try:
+        conn = get_db_connection()
+        categories = []
+        for row in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
+            cat_dict = {key: row[key] for key in row.keys()}
+            categories.append(cat_dict)
+        conn.close()
+        return render_template('about.html', config=FlaskConfig, categories=categories, now=datetime.now())
+    except Exception as e:
+        logger.error(f"Error in about route: {e}")
+        return render_template('about.html', config=FlaskConfig, categories=[], now=datetime.now())
 
 @app.route('/sources')
 def sources():
     """Sources listing page - keeping original route name"""
-    conn = get_db_connection()
-    
-    # Get sources with actual article counts from database
-    sources_list = []
-    for source in FlaskConfig.NEWS_SOURCES:
-        article_count = conn.execute(
-            "SELECT COUNT(*) as count FROM posts WHERE source_name = ?",
-            (source['name'],)
-        ).fetchone()['count']
+    try:
+        conn = get_db_connection()
         
-        sources_list.append({
-            **source,
-            'article_count': article_count
-        })
-    
-    # Get all categories
-    categories = []
-    for row in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
-        cat_dict = {key: row[key] for key in row.keys()}
-        categories.append(cat_dict)
-    
-    conn.close()
-    
-    return render_template('sources.html',
-                         sources=sources_list,
-                         categories=categories,
-                         config=FlaskConfig,
-                         now=datetime.now())
+        # Get sources with actual article counts from database
+        sources_list = []
+        for source in FlaskConfig.NEWS_SOURCES:
+            article_count = conn.execute(
+                "SELECT COUNT(*) as count FROM posts WHERE source_name = ?",
+                (source['name'],)
+            ).fetchone()['count']
+            
+            sources_list.append({
+                **source,
+                'article_count': article_count
+            })
+        
+        # Get all categories
+        categories = []
+        for row in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
+            cat_dict = {key: row[key] for key in row.keys()}
+            categories.append(cat_dict)
+        
+        conn.close()
+        
+        return render_template('sources.html',
+                             sources=sources_list,
+                             categories=categories,
+                             config=FlaskConfig,
+                             now=datetime.now())
+    except Exception as e:
+        logger.error(f"Error in sources route: {e}")
+        return render_template('500.html', config=FlaskConfig), 500
 
 # ============= ADMIN ROUTES =============
 @app.route('/admin/login', methods=['GET', 'POST'])
 def admin_login():
     """Admin login page"""
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
+    try:
+        if request.method == 'POST':
+            username = request.form.get('username')
+            password = request.form.get('password')
+            
+            conn = get_db_connection()
+            user_data = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+            conn.close()
+            
+            if user_data and check_password_hash(user_data['password_hash'], password):
+                user = User(user_data['id'], user_data['username'])
+                login_user(user)
+                flash('Logged in successfully!', 'success')
+                return redirect(url_for('admin_dashboard'))
+            else:
+                flash('Invalid credentials', 'danger')
         
-        conn = get_db_connection()
-        user_data = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
-        conn.close()
-        
-        if user_data and check_password_hash(user_data['password_hash'], password):
-            user = User(user_data['id'], user_data['username'])
-            login_user(user)
-            flash('Logged in successfully!', 'success')
-            return redirect(url_for('admin_dashboard'))
-        else:
-            flash('Invalid credentials', 'danger')
-    
-    return render_template('admin/login.html', config=FlaskConfig)
+        return render_template('admin/login.html', config=FlaskConfig)
+    except Exception as e:
+        logger.error(f"Error in admin_login route: {e}")
+        flash('An error occurred. Please try again.', 'danger')
+        return render_template('admin/login.html', config=FlaskConfig)
 
 @app.route('/admin/dashboard')
 @login_required
 def admin_dashboard():
     """Admin dashboard"""
-    conn = get_db_connection()
-    
-    stats = {
-        'total_posts': conn.execute("SELECT COUNT(*) FROM posts").fetchone()[0],
-        'published_posts': conn.execute("SELECT COUNT(*) FROM posts WHERE is_published = 1").fetchone()[0],
-        'total_views': conn.execute("SELECT SUM(views) FROM posts").fetchone()[0] or 0,
-        'categories': conn.execute("SELECT COUNT(*) FROM categories").fetchone()[0],
-        'sources': len(FlaskConfig.NEWS_SOURCES)
-    }
-    
-    # Recent posts
-    recent_posts = conn.execute("""
-        SELECT * FROM posts 
-        ORDER BY created_at DESC 
-        LIMIT 10
-    """).fetchall()
-    
-    conn.close()
-    
-    return render_template('admin/dashboard.html',
-                         stats=stats,
-                         recent_posts=recent_posts,
-                         config=FlaskConfig)
+    try:
+        conn = get_db_connection()
+        
+        stats = {
+            'total_posts': conn.execute("SELECT COUNT(*) FROM posts").fetchone()[0],
+            'published_posts': conn.execute("SELECT COUNT(*) FROM posts WHERE is_published = 1").fetchone()[0],
+            'total_views': conn.execute("SELECT SUM(views) FROM posts").fetchone()[0] or 0,
+            'categories': conn.execute("SELECT COUNT(*) FROM categories").fetchone()[0],
+            'sources': len(FlaskConfig.NEWS_SOURCES)
+        }
+        
+        # Recent posts
+        recent_posts = conn.execute("""
+            SELECT * FROM posts 
+            ORDER BY created_at DESC 
+            LIMIT 10
+        """).fetchall()
+        
+        conn.close()
+        
+        return render_template('admin/dashboard.html',
+                             stats=stats,
+                             recent_posts=recent_posts,
+                             config=FlaskConfig)
+    except Exception as e:
+        logger.error(f"Error in admin_dashboard route: {e}")
+        flash('An error occurred while loading the dashboard.', 'danger')
+        return redirect(url_for('admin_login'))
 
 @app.route('/admin/update-content')
 @login_required
 def admin_update_content():
     """Manual content update trigger"""
-    thread = threading.Thread(target=content_updater.update_content_database)
-    thread.start()
-    flash('Content update started in background', 'info')
-    return redirect(url_for('admin_dashboard'))
+    try:
+        thread = threading.Thread(target=content_updater.update_content_database)
+        thread.start()
+        flash('Content update started in background', 'info')
+        return redirect(url_for('admin_dashboard'))
+    except Exception as e:
+        logger.error(f"Error in admin_update_content route: {e}")
+        flash('Failed to start content update.', 'danger')
+        return redirect(url_for('admin_dashboard'))
 
 @app.route('/admin/logout')
 @login_required
@@ -1017,134 +1092,29 @@ def admin_logout():
 @app.route('/api/stats')
 def api_stats():
     """Real-time statistics API"""
-    conn = get_db_connection()
-    
-    today = datetime.now().strftime('%Y-%m-%d')
-    hour_ago = (datetime.now() - timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
-    
-    stats = {
-        'total_posts': conn.execute("SELECT COUNT(*) FROM posts WHERE is_published = 1").fetchone()[0],
-        'today_posts': conn.execute("SELECT COUNT(*) FROM posts WHERE is_published = 1 AND date(created_at) = ?", (today,)).fetchone()[0],
-        'hour_posts': conn.execute("SELECT COUNT(*) FROM posts WHERE is_published = 1 AND created_at >= ?", (hour_ago,)).fetchone()[0],
-        'total_views': conn.execute("SELECT SUM(views) FROM posts").fetchone()[0] or 0,
-        'active_sources': len([s for s in FlaskConfig.NEWS_SOURCES if s.get('enabled', True)]),
-        'last_update': datetime.now().strftime('%H:%M:%S'),
-        'status': 'online',
-        'update_interval': FlaskConfig.UPDATE_INTERVAL_MINUTES
-    }
-    
-    conn.close()
-    
-    return jsonify(stats)
-
-@app.route('/api/live-news')
-def api_live_news():
-    """Live news ticker API"""
-    conn = get_db_connection()
-    
-    # Get latest breaking news (last 2 hours)
-    two_hours_ago = (datetime.now() - timedelta(hours=2)).strftime('%Y-%m-%d %H:%M:%S')
-    
-    latest_news = conn.execute('''
-        SELECT p.title, p.slug, p.created_at, c.name as category_name, 
-               c.color as category_color
-        FROM posts p 
-        LEFT JOIN categories c ON p.category_id = c.id 
-        WHERE p.is_published = 1 
-        AND p.created_at >= ?
-        ORDER BY p.created_at DESC 
-        LIMIT 5
-    ''', (two_hours_ago,)).fetchall()
-    
-    news_list = []
-    for row in latest_news:
-        post_dict = convert_post_row(row)
-        news_list.append({
-            'title': row['title'],
-            'slug': row['slug'],
-            'category': row['category_name'],
-            'color': row['category_color'],
-            'time_ago': post_dict['formatted_date']
-        })
-    
-    # If no recent news, get latest news
-    if not news_list:
-        latest_news = conn.execute('''
-            SELECT p.title, p.slug, p.created_at, c.name as category_name, 
-                   c.color as category_color
-            FROM posts p 
-            LEFT JOIN categories c ON p.category_id = c.id 
-            WHERE p.is_published = 1 
-            ORDER BY p.created_at DESC 
-            LIMIT 3
-        ''').fetchall()
+    try:
+        conn = get_db_connection()
         
-        for row in latest_news:
-            post_dict = convert_post_row(row)
-            news_list.append({
-                'title': row['title'],
-                'slug': row['slug'],
-                'category': row['category_name'],
-                'color': row['category_color'],
-                'time_ago': post_dict['formatted_date']
-            })
-    
-    conn.close()
-    
-    return jsonify({
-        'status': 'success',
-        'articles': news_list,
-        'timestamp': datetime.now().isoformat(),
-        'count': len(news_list)
-    })
-
-@app.route('/api/sources/status')
-def api_sources_status():
-    """Sources status API"""
-    active_sources = []
-    
-    for source in FlaskConfig.NEWS_SOURCES[:5]:
-        if not source.get('enabled', True):
-            continue
-            
-        try:
-            response = requests.head(source['url'], timeout=5)
-            active_sources.append({
-                'name': source['name'],
-                'status': 'active' if response.status_code == 200 else 'inactive',
-                'category': source['category'],
-                'last_checked': datetime.now().isoformat()
-            })
-        except:
-            active_sources.append({
-                'name': source['name'],
-                'status': 'inactive',
-                'category': source['category'],
-                'last_checked': datetime.now().isoformat()
-            })
-    
-    return jsonify({
-        'status': 'success',
-        'sources': active_sources,
-        'total_active': len([s for s in active_sources if s['status'] == 'active']),
-        'total_sources': len(active_sources)
-    })
-
-@app.route('/api/post/<slug>/view', methods=['POST'])
-def api_increment_view(slug):
-    """Increment post view count"""
-    conn = get_db_connection()
-    
-    post = conn.execute("SELECT views FROM posts WHERE slug = ?", (slug,)).fetchone()
-    if post:
-        new_views = post['views'] + 1
-        conn.execute("UPDATE posts SET views = ? WHERE slug = ?", (new_views, slug))
-        conn.commit()
+        today = datetime.now().strftime('%Y-%m-%d')
+        hour_ago = (datetime.now() - timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S')
+        
+        stats = {
+            'total_posts': conn.execute("SELECT COUNT(*) FROM posts WHERE is_published = 1").fetchone()[0],
+            'today_posts': conn.execute("SELECT COUNT(*) FROM posts WHERE is_published = 1 AND date(created_at) = ?", (today,)).fetchone()[0],
+            'hour_posts': conn.execute("SELECT COUNT(*) FROM posts WHERE is_published = 1 AND created_at >= ?", (hour_ago,)).fetchone()[0],
+            'total_views': conn.execute("SELECT SUM(views) FROM posts").fetchone()[0] or 0,
+            'active_sources': len([s for s in FlaskConfig.NEWS_SOURCES if s.get('enabled', True)]),
+            'last_update': datetime.now().strftime('%H:%M:%S'),
+            'status': 'online',
+            'update_interval': FlaskConfig.UPDATE_INTERVAL_MINUTES
+        }
+        
         conn.close()
-        return jsonify({'success': True, 'views': new_views})
-    
-    conn.close()
-    return jsonify({'success': False}), 404
+        
+        return jsonify(stats)
+    except Exception as e:
+        logger.error(f"Error in api_stats route: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 # ============= ERROR HANDLERS =============
 @app.errorhandler(404)
@@ -1153,6 +1123,7 @@ def page_not_found(e):
 
 @app.errorhandler(500)
 def internal_server_error(e):
+    logger.error(f"500 error: {e}")
     return render_template('500.html', config=FlaskConfig), 500
 
 # ============= START APPLICATION =============
@@ -1195,4 +1166,5 @@ if __name__ == '__main__':
     content_updater.start_auto_updates()
     
     # Start Flask app
-    app.run(debug=True, host='0.0.0.0', port=5000, threaded=True)
+    port = int(os.environ.get('PORT', 5000))
+    app.run(debug=False, host='0.0.0.0', port=port, threaded=True)

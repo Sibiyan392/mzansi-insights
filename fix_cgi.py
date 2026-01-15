@@ -1,9 +1,8 @@
-
 # fix_cgi.py - Compatibility for Python 3.13+
 import sys
 import types
 
-# Patch cgi module
+# Patch cgi module (removed in Python 3.13)
 try:
     import cgi
     print("cgi module already exists")
