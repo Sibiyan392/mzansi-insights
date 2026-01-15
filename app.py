@@ -15,6 +15,7 @@ import re
 import sys
 import io
 import logging
+import atexit
 
 # Fix Unicode encoding for Windows console
 if sys.platform == "win32":
@@ -22,7 +23,7 @@ if sys.platform == "win32":
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 # ============= FLASK CONFIG =============
@@ -76,29 +77,46 @@ CATEGORY_DEFINITIONS = {
 
 # ============= DATABASE =============
 def get_db_path():
-    """Get database path - uses persistent storage on Render"""
-    if 'RENDER' in os.environ:
-        # On Render, check if we have persistent disk
-        persistent_path = '/var/data/posts.db'
-        if os.path.exists('/var/data'):
-            return persistent_path
-        # Fallback to /tmp (will reset on restart)
-        return '/tmp/posts.db'
-    else:
-        os.makedirs('data', exist_ok=True)
-        return 'data/posts.db'
+    """Get database path - FIXED for Render persistence"""
+    # Always use persistent location
+    persistent_locations = [
+        '/var/data/posts.db',                # Render persistent disk
+        '/tmp/persistent_data/posts.db',     # Custom persistent directory
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'persistent_data', 'posts.db'),  # App directory
+    ]
+    
+    # Try each location
+    for db_path in persistent_locations:
+        db_dir = os.path.dirname(db_path)
+        try:
+            if not os.path.exists(db_dir):
+                os.makedirs(db_dir, exist_ok=True)
+            return db_path
+        except:
+            continue
+    
+    # Fallback
+    return 'data/posts.db'
 
 def setup_database():
-    print("📄 Setting up database...")
+    print("=" * 60)
+    print("📄 SETTING UP DATABASE...")
+    print("=" * 60)
+    
     db_path = get_db_path()
+    print(f"📊 Database path: {db_path}")
     
-    if '/' in db_path:
-        db_dir = os.path.dirname(db_path)
+    # Ensure directory exists
+    db_dir = os.path.dirname(db_path)
+    if db_dir and not os.path.exists(db_dir):
         os.makedirs(db_dir, exist_ok=True)
+        print(f"📁 Created directory: {db_dir}")
     
+    # Connect and setup
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
     
+    # Users table
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
@@ -106,6 +124,7 @@ def setup_database():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )''')
     
+    # Categories table
     c.execute('''CREATE TABLE IF NOT EXISTS categories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT UNIQUE NOT NULL,
@@ -115,6 +134,7 @@ def setup_database():
         color TEXT
     )''')
     
+    # Posts table
     c.execute('''CREATE TABLE IF NOT EXISTS posts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
@@ -133,30 +153,37 @@ def setup_database():
         FOREIGN KEY (category_id) REFERENCES categories(id)
     )''')
     
+    # Indexes
     c.execute('CREATE INDEX IF NOT EXISTS idx_posts_slug ON posts(slug)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_posts_category ON posts(category_id)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_posts_published ON posts(is_published)')
     
+    # Admin user
     c.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
     if c.fetchone()[0] == 0:
         pwd_hash = generate_password_hash(FlaskConfig.ADMIN_PASSWORD)
         c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)", ('admin', pwd_hash))
         print("✅ Admin user created")
     
+    # Categories
     for slug, cat_data in CATEGORY_DEFINITIONS.items():
         c.execute("SELECT COUNT(*) FROM categories WHERE slug = ?", (slug,))
         if c.fetchone()[0] == 0:
             c.execute("INSERT INTO categories (name, slug, description, icon, color) VALUES (?, ?, ?, ?, ?)",
                      (cat_data['name'], cat_data['slug'], cat_data['description'], cat_data['icon'], cat_data['color']))
+            print(f"✅ Category created: {cat_data['name']}")
     
-    # Check if we need initial data
+    # Check existing posts
     c.execute("SELECT COUNT(*) FROM posts")
     post_count = c.fetchone()[0]
     
     conn.commit()
     conn.close()
+    
     print(f"✅ Database setup complete - {post_count} existing posts")
+    print("=" * 60)
+    
     return post_count == 0  # Return True if empty
 
 def get_db_connection():
@@ -320,7 +347,11 @@ class ContentFetcher:
         total_saved = 0
         count_per_source = FlaskConfig.INITIAL_FETCH_COUNT if initial else 8
         
-        for source in FlaskConfig.NEWS_SOURCES:
+        # Shuffle sources for better distribution
+        sources = FlaskConfig.NEWS_SOURCES.copy()
+        random.shuffle(sources)
+        
+        for source in sources:
             if not source.get('enabled', True):
                 continue
             
@@ -328,12 +359,15 @@ class ContentFetcher:
             for article in articles:
                 if self.save_article(article):
                     total_saved += 1
+                    # After first few articles, we have something to show
+                    if initial and total_saved >= 5:
+                        print(f"⚡ Quick-load: Got {total_saved} articles, continuing in background...")
             
-            # Shorter delay for initial fetch
-            time.sleep(1 if initial else 2)
+            # Very short delay
+            time.sleep(0.5)
         
         print("="*60)
-        print(f"🎯 FETCHED {total_saved} NEW ARTICLES!")
+        print(f"🎯 TOTAL FETCHED: {total_saved} NEW ARTICLES!")
         print("="*60)
         
         if initial:
@@ -341,23 +375,52 @@ class ContentFetcher:
         
         return total_saved
     
+    def immediate_fetch(self):
+        """IMMEDIATE fetch - blocks until we get SOME data"""
+        print("⚡⚡⚡ STARTING IMMEDIATE FETCH ⚡⚡⚡")
+        
+        total_saved = 0
+        # Just fetch from top 3 sources first for speed
+        quick_sources = FlaskConfig.NEWS_SOURCES[:3]
+        
+        for source in quick_sources:
+            articles = self.fetch_articles(source, count=5)
+            for article in articles:
+                if self.save_article(article):
+                    total_saved += 1
+                    if total_saved >= 10:  # We have enough to show
+                        break
+            if total_saved >= 10:
+                break
+        
+        print(f"⚡ IMMEDIATE FETCH COMPLETE: {total_saved} articles ready!")
+        return total_saved
+    
     def start_auto_fetch(self, needs_initial_data=False):
         def fetch_loop():
-            # If database is empty, do immediate fetch
-            if needs_initial_data:
-                print("⚡ Database empty - starting immediate fetch...")
-                time.sleep(3)  # Small delay to let server start
+            print("⏳ Starting fetch scheduler...")
+            
+            # **IMMEDIATE FETCH - BLOCKING**
+            print("⚡ PERFORMING IMMEDIATE FETCH (BLOCKING)...")
+            immediate_count = self.immediate_fetch()
+            
+            if immediate_count == 0 and needs_initial_data:
+                print("⚠️ Immediate fetch got 0 articles, doing full fetch...")
                 self.fetch_all_sources(initial=True)
+            elif needs_initial_data and immediate_count < 20:
+                print(f"🔄 Got {immediate_count} articles, fetching more in background...")
+                # Start background full fetch
+                bg_thread = threading.Thread(target=self.fetch_all_sources, args=(True,), daemon=True)
+                bg_thread.start()
             else:
-                print("📚 Database has existing data - scheduled updates only")
-                time.sleep(10)
-                self.fetch_all_sources(initial=False)
+                print(f"✅ {immediate_count} articles ready for display!")
             
             # Regular updates
+            print(f"⏰ Scheduled updates every {FlaskConfig.UPDATE_INTERVAL_MINUTES} minutes")
             while True:
                 try:
                     time.sleep(FlaskConfig.UPDATE_INTERVAL_MINUTES * 60)
-                    print(f"\n⏰ Running scheduled update...")
+                    print(f"\n🔄 Running scheduled update...")
                     self.fetch_all_sources(initial=False)
                 except Exception as e:
                     print(f"❌ Update error: {e}")
@@ -377,12 +440,19 @@ print("=" * 60)
 print("🇿🇦 MZANSI INSIGHTS - STARTING...")
 print("=" * 60)
 
-# Setup database and check if empty
+# Setup database FIRST
 db_is_empty = setup_database()
 
 # Initialize fetcher
 fetcher = ContentFetcher()
-fetcher.start_auto_fetch(needs_initial_data=db_is_empty)
+
+# **CRITICAL: Start fetcher BEFORE any requests**
+print("🚀 Starting content fetcher BEFORE server starts...")
+fetcher.start_auto_fetch(needs_initial_data=True)
+
+# Wait a moment for initial fetch to start
+print("⏳ Waiting 2 seconds for initial fetch to begin...")
+time.sleep(2)
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -472,11 +542,21 @@ def index():
             cat_dict['post_count'] = post_count
             categories.append(cat_dict)
         
-        # Get latest posts
+        # Get latest posts - even if not many, show what we have
         posts_raw = conn.execute(
             "SELECT * FROM posts WHERE is_published = 1 ORDER BY created_at DESC LIMIT 20"
         ).fetchall()
         posts = [convert_post_row(row) for row in posts_raw]
+        
+        # If no posts yet, check again after short delay (first visitor might trigger fetch)
+        if not posts and db_is_empty:
+            print("⚠️ No posts yet - checking if fetch is in progress...")
+            # Wait a bit and check again
+            time.sleep(1)
+            posts_raw = conn.execute(
+                "SELECT * FROM posts WHERE is_published = 1 ORDER BY created_at DESC LIMIT 20"
+            ).fetchall()
+            posts = [convert_post_row(row) for row in posts_raw]
         
         # Get trending
         trending_raw = conn.execute(
@@ -484,7 +564,7 @@ def index():
         ).fetchall()
         trending_posts = [convert_post_row(row) for row in trending_raw]
         
-        # Get sources with counts - SHOW ALL SOURCES
+        # Get sources with counts
         sources = []
         for source in FlaskConfig.NEWS_SOURCES:
             article_count = conn.execute(
@@ -501,19 +581,19 @@ def index():
                              posts=posts, 
                              trending_posts=trending_posts, 
                              categories=categories,
-                             sources=sources,  # All sources displayed
+                             sources=sources,
                              config=FlaskConfig, 
                              has_posts=has_posts, 
                              now=datetime.now())
                              
     except Exception as e:
         logger.error(f"Home error: {e}")
-        # Fallback - show all sources even if no data yet
+        # Fallback
         return render_template('index.html', 
                              posts=[], 
                              trending_posts=[], 
                              categories=list(CATEGORY_DEFINITIONS.values()),
-                             sources=FlaskConfig.NEWS_SOURCES,  # Show all sources
+                             sources=FlaskConfig.NEWS_SOURCES,
                              config=FlaskConfig, 
                              has_posts=False, 
                              now=datetime.now())
@@ -758,6 +838,7 @@ def server_error(e):
 
 # ============= START APP =============
 if __name__ == '__main__':
+    print("=" * 60)
     print(f"🌐 Site: http://localhost:5000")
     print(f"🔐 Admin: http://localhost:5000/admin/login")
     print(f"📧 Contact: {FlaskConfig.CONTACT_EMAIL}")
