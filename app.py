@@ -1,3 +1,6 @@
+# Python 3.13+ compatibility fix
+import fix_cgi
+
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user, UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -14,6 +17,7 @@ import requests
 import sys
 import io
 import logging
+import fix_cgi
 
 # Fix Unicode encoding for Windows console
 if sys.platform == "win32":
