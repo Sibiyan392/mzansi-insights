@@ -1,0 +1,49 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Create New Post - Admin</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; }
+        .sidebar { width: 250px; background: #2C3E50; color: white; height: 100vh; padding: 20px; position: fixed; }
+        .main { margin-left: 270px; padding: 20px; }
+        input, textarea, select { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; }
+        button { background: #27AE60; color: white; border: none; padding: 10px 20px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>SA Updates Admin</h2>
+        <a href="/admin/dashboard" style="color: white; display: block; margin: 10px 0;">Dashboard</a>
+        <a href="/admin/posts" style="color: white; display: block; margin: 10px 0;">Posts</a>
+        <a href="/admin/new-post" style="color: white; display: block; margin: 10px 0;">New Post</a>
+        <a href="/" style="color: white; display: block; margin: 10px 0;">View Site</a>
+        <a href="/admin/logout" style="color: white; display: block; margin: 10px 0;">Logout</a>
+    </div>
+    <div class="main">
+        <h1>Create New Post</h1>
+        <form id="postForm">
+            <input type="text" id="title" placeholder="Post Title" required>
+            <textarea id="content" rows="10" placeholder="Post Content" required></textarea>
+            <textarea id="excerpt" rows="3" placeholder="Short Excerpt" required></textarea>
+            <select id="category" required>
+                <option value="">Select Category</option>
+                <option value="grants">Grants</option>
+                <option value="jobs">Jobs</option>
+                <option value="entertainment">Entertainment</option>
+            </select>
+            <input type="text" id="author" placeholder="Author (optional)" value="SA Updates Team">
+            <div>
+                <label><input type="checkbox" id="published" checked> Publish immediately</label>
+            </div>
+            <button type="submit">Publish Post</button>
+        </form>
+    </div>
+    <script>
+        document.getElementById('postForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            alert('Post published! (Demo mode)');
+            window.location.href = '/admin/posts';
+        });
+    </script>
+</body>
+</html>

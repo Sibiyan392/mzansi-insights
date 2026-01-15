@@ -1,0 +1,556 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ post.title }} - {{ config.SITE_NAME }}</title>
+    <meta name="description" content="{{ post.excerpt }}">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="{{ post.title }}">
+    <meta property="og:description" content="{{ post.excerpt }}">
+    <meta property="og:type" content="article">
+    <meta property="og:image" content="{{ post.image_url or url_for('static', filename='img/default-og.jpg') }}">
+    
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{ post.title }}">
+    <meta name="twitter:description" content="{{ post.excerpt }}">
+    <meta name="twitter:image" content="{{ post.image_url or url_for('static', filename='img/default-og.jpg') }}">
+    
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "NewsArticle",
+        "headline": "{{ post.title }}",
+        "description": "{{ post.excerpt }}",
+        "image": "{{ post.image_url or url_for('static', filename='img/default-og.jpg') }}",
+        "datePublished": "{{ post.created_at.isoformat() }}",
+        "dateModified": "{{ post.updated_at.isoformat() }}",
+        "author": {
+            "@type": "Person",
+            "name": "{{ post.author }}"
+        },
+        "publisher": {
+            "@type": "Organization",
+            "name": "{{ config.SITE_NAME }}",
+            "logo": {
+                "@type": "ImageObject",
+                "url": "{{ url_for('static', filename='img/logo.png', _external=True) }}"
+            }
+        }
+    }
+    </script>
+    
+    <!-- Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Inter:wght@400;500;600&family=Merriweather:wght@300;400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/post.css') }}">
+    
+    <!-- AdSense -->
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXXXXXXXXXX" crossorigin="anonymous"></script>
+</head>
+<body>
+    <!-- Theme Toggle -->
+    <button class="theme-toggle" aria-label="Toggle theme">
+        <i class="fas fa-moon"></i>
+        <i class="fas fa-sun"></i>
+    </button>
+
+    <!-- Header -->
+    <header class="smart-header">
+        <div class="container">
+            <nav class="navbar">
+                <div class="logo">
+                    <a href="{{ url_for('index') }}">
+                        <div class="logo-icon">
+                            <i class="fas fa-flag"></i>
+                        </div>
+                        <span class="logo-text">{{ config.SITE_NAME }}</span>
+                    </a>
+                </div>
+                
+                <button class="menu-toggle" aria-label="Toggle menu">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+                
+                <div class="nav-menu">
+                    <a href="{{ url_for('index') }}" class="nav-link">
+                        <i class="fas fa-home"></i> Home
+                    </a>
+                    {% for category in categories %}
+                    <a href="{{ url_for('category_page', slug=category.slug) }}" class="nav-link">
+                        <i class="fas fa-{{ 'newspaper' if category.slug == 'news' else 'briefcase' if category.slug == 'jobs' else 'hand-holding-usd' if category.slug == 'grants' else 'film' }}"></i>
+                        {{ category.name }}
+                    </a>
+                    {% endfor %}
+                    <a href="{{ url_for('about') }}" class="nav-link">
+                        <i class="fas fa-info-circle"></i> About
+                    </a>
+                </div>
+                
+                <div class="search-container">
+                    <form action="/search" method="GET" class="search-form">
+                        <input type="text" name="q" placeholder="Search..." class="search-input">
+                        <button type="submit" class="search-btn">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </form>
+                </div>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Breadcrumb -->
+    <nav class="breadcrumb">
+        <div class="container">
+            <a href="{{ url_for('index') }}"><i class="fas fa-home"></i> Home</a>
+            <i class="fas fa-chevron-right"></i>
+            <a href="{{ url_for('category_page', slug=post.category_ref.slug) }}">{{ post.category_ref.name }}</a>
+            <i class="fas fa-chevron-right"></i>
+            <span>{{ post.title[:30] }}...</span>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="post-container">
+        <div class="container">
+            <div class="post-layout">
+                <!-- Article Content -->
+                <article class="article-main">
+                    <!-- Post Header -->
+                    <header class="article-header">
+                        <div class="post-meta-top">
+                            <span class="post-category-badge">{{ post.category_ref.name }}</span>
+                            <span class="post-date">{{ post.formatted_date }}</span>
+                            {% if post.is_auto_generated %}
+                            <span class="auto-generated-badge">
+                                <i class="fas fa-robot"></i> Auto-generated
+                            </span>
+                            {% endif %}
+                        </div>
+                        
+                        <h1 class="article-title">{{ post.title }}</h1>
+                        
+                        <div class="author-info">
+                            <div class="author-avatar">
+                                <i class="fas fa-user"></i>
+                            </div>
+                            <div class="author-details">
+                                <span class="author-name">{{ post.author }}</span>
+                                <span class="post-stats">
+                                    <i class="fas fa-eye"></i> {{ post.views }} views • 
+                                    <i class="fas fa-clock"></i> {{ (post.content|length / 200)|round|int }} min read
+                                </span>
+                            </div>
+                        </div>
+                        
+                        {% if post.image_url %}
+                        <div class="featured-image">
+                            <img src="{{ post.image_url }}" alt="{{ post.title }}" loading="lazy">
+                            {% if post.source_url %}
+                            <div class="image-credit">
+                                Source: <a href="{{ post.source_url }}" target="_blank" rel="nofollow">{{ post.source_url|urlparse|attr('netloc') }}</a>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </header>
+
+                    <!-- Ad Slot (Top) -->
+                    <div class="ad-slot in-article-top">
+                        <div class="ad-label">Advertisement</div>
+                        <div class="ad-placeholder">
+                            <p>AdSense Ready</p>
+                            <p>728x90</p>
+                        </div>
+                    </div>
+
+                    <!-- Article Content -->
+                    <div class="article-content">
+                        {{ post.html_content|safe }}
+                        
+                        {% if post.source_url %}
+                        <div class="source-reference">
+                            <h3><i class="fas fa-external-link-alt"></i> Source Reference</h3>
+                            <p>This article is based on information from: 
+                                <a href="{{ post.source_url }}" target="_blank" rel="nofollow">{{ post.source_url }}</a>
+                            </p>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <!-- Post Actions -->
+                    <div class="post-actions">
+                        <button class="action-btn share-btn" data-title="{{ post.title }}" data-url="{{ request.url }}">
+                            <i class="fas fa-share-alt"></i> Share
+                        </button>
+                        <button class="action-btn save-btn" data-post-id="{{ post.id }}">
+                            <i class="fas fa-bookmark"></i> Save
+                        </button>
+                        <button class="action-btn print-btn">
+                            <i class="fas fa-print"></i> Print
+                        </button>
+                        <div class="action-btn views-count">
+                            <i class="fas fa-eye"></i> {{ post.views }}
+                        </div>
+                    </div>
+
+                    <!-- Tags -->
+                    <div class="post-tags">
+                        <span class="tags-label"><i class="fas fa-tags"></i> Related:</span>
+                        <a href="{{ url_for('category_page', slug=post.category_ref.slug) }}" class="tag">
+                            {{ post.category_ref.name }}
+                        </a>
+                        <a href="#" class="tag">South Africa</a>
+                        {% if post.category_ref.slug == 'jobs' %}
+                        <a href="#" class="tag">Employment</a>
+                        <a href="#" class="tag">Career</a>
+                        {% elif post.category_ref.slug == 'grants' %}
+                        <a href="#" class="tag">Funding</a>
+                        <a href="#" class="tag">SASSA</a>
+                        {% elif post.category_ref.slug == 'news' %}
+                        <a href="#" class="tag">Latest</a>
+                        <a href="#" class="tag">Update</a>
+                        {% endif %}
+                    </div>
+
+                    <!-- Share Modal -->
+                    <div class="share-modal" id="shareModal">
+                        <div class="modal-content">
+                            <h3>Share this article</h3>
+                            <div class="share-buttons">
+                                <a href="#" class="share-btn facebook" data-platform="facebook">
+                                    <i class="fab fa-facebook-f"></i> Facebook
+                                </a>
+                                <a href="#" class="share-btn twitter" data-platform="twitter">
+                                    <i class="fab fa-twitter"></i> Twitter
+                                </a>
+                                <a href="#" class="share-btn linkedin" data-platform="linkedin">
+                                    <i class="fab fa-linkedin-in"></i> LinkedIn
+                                </a>
+                                <a href="#" class="share-btn whatsapp" data-platform="whatsapp">
+                                    <i class="fab fa-whatsapp"></i> WhatsApp
+                                </a>
+                                <button class="share-btn copy-link" data-url="{{ request.url }}">
+                                    <i class="fas fa-link"></i> Copy Link
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </article>
+
+                <!-- Sidebar -->
+                <aside class="article-sidebar">
+                    <!-- Author Card -->
+                    <div class="sidebar-card author-card">
+                        <div class="author-card-header">
+                            <div class="author-avatar-large">
+                                <i class="fas fa-user-edit"></i>
+                            </div>
+                            <div class="author-info-sidebar">
+                                <h4>{{ post.author }}</h4>
+                                <span class="author-role">Content Creator</span>
+                            </div>
+                        </div>
+                        <p>Providing the latest updates on South African news, opportunities, and entertainment.</p>
+                        <div class="author-stats">
+                            <div class="stat">
+                                <strong>{{ recent_posts|length }}</strong>
+                                <span>Posts</span>
+                            </div>
+                            <div class="stat">
+                                <strong>{{ recent_posts|map(attribute='views')|sum }}</strong>
+                                <span>Views</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Table of Contents -->
+                    <div class="sidebar-card toc-card">
+                        <h3><i class="fas fa-list"></i> In This Article</h3>
+                        <div class="toc-content" id="tableOfContents">
+                            <!-- Generated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Related Posts -->
+                    <div class="sidebar-card related-posts">
+                        <h3><i class="fas fa-newspaper"></i> Related Articles</h3>
+                        <div class="related-list">
+                            {% for related in recent_posts[:5] if related.id != post.id %}
+                            <a href="{{ url_for('post_detail', slug=related.slug) }}" class="related-item">
+                                <div class="related-image">
+                                    {% if related.image_url %}
+                                    <img src="{{ related.image_url }}" alt="{{ related.title }}" loading="lazy">
+                                    {% endif %}
+                                </div>
+                                <div class="related-content">
+                                    <h4>{{ related.title[:50] }}{% if related.title|length > 50 %}...{% endif %}</h4>
+                                    <div class="related-meta">
+                                        <span>{{ related.formatted_date }}</span>
+                                        <span>{{ related.views }} views</span>
+                                    </div>
+                                </div>
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- Newsletter -->
+                    <div class="sidebar-card newsletter-card">
+                        <h3><i class="fas fa-envelope"></i> Stay Updated</h3>
+                        <p>Get daily South African updates in your inbox</p>
+                        <form class="newsletter-form-sidebar">
+                            <input type="email" placeholder="Your email" required>
+                            <button type="submit">Subscribe</button>
+                        </form>
+                        <p class="newsletter-note">No spam. Unsubscribe anytime.</p>
+                    </div>
+
+                    <!-- Ad Slot -->
+                    <div class="sidebar-card ad-card">
+                        <div class="ad-label">Advertisement</div>
+                        <div class="ad-placeholder">
+                            <p>AdSense Ready</p>
+                            <p>300x250</p>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+
+            <!-- Comments Section -->
+            <section class="comments-section">
+                <div class="comments-header">
+                    <h2><i class="fas fa-comments"></i> Discussion</h2>
+                    <span class="comments-count">0 comments</span>
+                </div>
+                
+                <div class="comment-form-container">
+                    <div class="comment-form-header">
+                        <h3>Share your thoughts</h3>
+                        <p>Join the conversation about this South African update</p>
+                    </div>
+                    <form class="comment-form">
+                        <div class="form-row">
+                            <input type="text" placeholder="Your Name" required>
+                            <input type="email" placeholder="Your Email (optional)">
+                        </div>
+                        <textarea placeholder="What are your thoughts on this?" rows="4" required></textarea>
+                        <div class="form-actions">
+                            <button type="submit" class="submit-comment">
+                                <i class="fas fa-paper-plane"></i> Post Comment
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="comments-list">
+                    <div class="empty-comments">
+                        <i class="fas fa-comment-slash"></i>
+                        <h3>No comments yet</h3>
+                        <p>Be the first to share your thoughts!</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- More From Category -->
+            <section class="more-from-category">
+                <h2 class="section-title">
+                    <i class="fas fa-{{ 'newspaper' if post.category_ref.slug == 'news' else 'briefcase' if post.category_ref.slug == 'jobs' else 'hand-holding-usd' if post.category_ref.slug == 'grants' else 'film' }}"></i>
+                    More from {{ post.category_ref.name }}
+                </h2>
+                <div class="category-posts-grid">
+                    {% for category_post in recent_posts[:6] if category_post.category_id == post.category_id and category_post.id != post.id %}
+                    <article class="category-post-card">
+                        <a href="{{ url_for('post_detail', slug=category_post.slug) }}">
+                            {% if category_post.image_url %}
+                            <div class="category-post-image">
+                                <img src="{{ category_post.image_url }}" alt="{{ category_post.title }}" loading="lazy">
+                            </div>
+                            {% endif %}
+                            <div class="category-post-content">
+                                <h3>{{ category_post.title[:70] }}{% if category_post.title|length > 70 %}...{% endif %}</h3>
+                                <div class="category-post-meta">
+                                    <span>{{ category_post.formatted_date }}</span>
+                                    <span>{{ category_post.views }} views</span>
+                                </div>
+                            </div>
+                        </a>
+                    </article>
+                    {% endfor %}
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="smart-footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-col">
+                    <div class="footer-logo">
+                        <i class="fas fa-flag"></i>
+                        {{ config.SITE_NAME }}
+                    </div>
+                    <p class="footer-description">
+                        Your trusted source for South African news, opportunities, and entertainment.
+                    </p>
+                    <div class="social-links">
+                        <a href="#" class="social-link"><i class="fab fa-twitter"></i></a>
+                        <a href="#" class="social-link"><i class="fab fa-facebook"></i></a>
+                        <a href="#" class="social-link"><i class="fab fa-instagram"></i></a>
+                        <a href="#" class="social-link"><i class="fab fa-linkedin"></i></a>
+                    </div>
+                </div>
+                
+                <div class="footer-col">
+                    <h4>Quick Links</h4>
+                    <ul class="footer-links">
+                        <li><a href="{{ url_for('index') }}">Home</a></li>
+                        {% for category in categories %}
+                        <li><a href="{{ url_for('category_page', slug=category.slug) }}">{{ category.name }}</a></li>
+                        {% endfor %}
+                        <li><a href="{{ url_for('about') }}">About Us</a></li>
+                        <li><a href="{{ url_for('contact') }}">Contact</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-col">
+                    <h4>Legal</h4>
+                    <ul class="footer-links">
+                        <li><a href="{{ url_for('privacy') }}">Privacy Policy</a></li>
+                        <li><a href="{{ url_for('terms') }}">Terms of Service</a></li>
+                        <li><a href="#">Cookie Policy</a></li>
+                        <li><a href="#">Disclaimer</a></li>
+                    </ul>
+                </div>
+                
+                <div class="footer-col">
+                    <h4>Contact Info</h4>
+                    <ul class="contact-info">
+                        <li><i class="fas fa-envelope"></i> info@saupdates.co.za</li>
+                        <li><i class="fas fa-phone"></i> +27 11 123 4567</li>
+                        <li><i class="fas fa-map-marker-alt"></i> Johannesburg, SA</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="footer-bottom">
+                <p>&copy; {{ now.year }} {{ config.SITE_NAME }}. All rights reserved.</p>
+                <p>Powered by intelligent automation • Updated daily</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Back to Top Button -->
+    <button class="back-to-top">
+        <i class="fas fa-arrow-up"></i>
+    </button>
+
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/post.js') }}"></script>
+    <script>
+        // Initialize post-specific features
+        document.addEventListener('DOMContentLoaded', function() {
+            // Generate table of contents
+            generateTableOfContents();
+            
+            // Initialize share functionality
+            initShareButtons();
+            
+            // Initialize reading progress
+            initReadingProgress();
+            
+            // Initialize back to top button
+            initBackToTop();
+            
+            // Initialize comment system
+            initComments();
+        });
+        
+        function generateTableOfContents() {
+            const articleContent = document.querySelector('.article-content');
+            const headings = articleContent.querySelectorAll('h2, h3');
+            const tocContainer = document.getElementById('tableOfContents');
+            
+            if (headings.length === 0) {
+                tocContainer.innerHTML = '<p>No headings in this article</p>';
+                return;
+            }
+            
+            let tocHTML = '<ul class="toc-list">';
+            headings.forEach((heading, index) => {
+                if (!heading.id) {
+                    heading.id = 'heading-' + index;
+                }
+                
+                const level = heading.tagName.toLowerCase();
+                const indent = level === 'h3' ? 'toc-level-2' : '';
+                
+                tocHTML += `
+                    <li class="toc-item ${indent}">
+                        <a href="#${heading.id}">
+                            <i class="fas fa-chevron-right"></i>
+                            ${heading.textContent}
+                        </a>
+                    </li>
+                `;
+            });
+            tocHTML += '</ul>';
+            tocContainer.innerHTML = tocHTML;
+        }
+        
+        function initShareButtons() {
+            const shareBtn = document.querySelector('.share-btn');
+            const shareModal = document.getElementById('shareModal');
+            
+            shareBtn?.addEventListener('click', () => {
+                shareModal.style.display = 'block';
+                setTimeout(() => shareModal.classList.add('active'), 10);
+            });
+            
+            shareModal?.addEventListener('click', (e) => {
+                if (e.target === shareModal) {
+                    shareModal.classList.remove('active');
+                    setTimeout(() => shareModal.style.display = 'none', 300);
+                }
+            });
+        }
+        
+        function initReadingProgress() {
+            // Already implemented in main.js
+        }
+        
+        function initBackToTop() {
+            const backToTopBtn = document.querySelector('.back-to-top');
+            
+            window.addEventListener('scroll', () => {
+                if (window.pageYOffset > 300) {
+                    backToTopBtn.classList.add('visible');
+                } else {
+                    backToTopBtn.classList.remove('visible');
+                }
+            });
+            
+            backToTopBtn.addEventListener('click', () => {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            });
+        }
+        
+        function initComments() {
+            // Comment system would be integrated here
+            // For now, it's a static implementation
+        }
+    </script>
+</body>
+</html>

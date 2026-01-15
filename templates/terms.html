@@ -1,0 +1,380 @@
+﻿<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terms of Service - {{ config.SITE_NAME }}</title>
+    <meta name="description" content="Terms of Service for {{ config.SITE_NAME }}">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <style>
+        .terms-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 80px 20px;
+        }
+        
+        .terms-header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+        
+        .terms-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 15px;
+        }
+        
+        .terms-date {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+        
+        .terms-section {
+            margin-bottom: 40px;
+        }
+        
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--border-color);
+        }
+        
+        .terms-content {
+            color: var(--text-secondary);
+            line-height: 1.8;
+        }
+        
+        .terms-content p {
+            margin-bottom: 20px;
+        }
+        
+        .terms-content ul {
+            margin-bottom: 20px;
+            padding-left: 20px;
+        }
+        
+        .terms-content li {
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+        
+        .important-note {
+            background: linear-gradient(135deg, #fff8e1 0%, #fff3e0 100%);
+            padding: 25px;
+            border-radius: 12px;
+            margin: 30px 0;
+            border-left: 4px solid #ff9e00;
+        }
+        
+        .important-note h4 {
+            color: #ff9e00;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+        
+        .back-home {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 40px;
+            padding: 12px 25px;
+            background: var(--primary);
+            color: white;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+        
+        .back-home:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(67, 97, 238, 0.2);
+        }
+        
+        .highlight {
+            background: var(--bg-secondary);
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border: 1px solid var(--border-color);
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="navbar">
+        <div class="container navbar-container">
+            <a href="/" class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-flag"></i>
+                </div>
+                <span>{{ config.SITE_NAME }}</span>
+            </a>
+
+            <nav class="nav-menu">
+                <a href="/" class="nav-link">
+                    <i class="fas fa-home"></i>
+                    <span>Home</span>
+                </a>
+                <a href="/#news" class="nav-link">
+                    <i class="fas fa-newspaper"></i>
+                    <span>News</span>
+                </a>
+                <a href="/#business" class="nav-link">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Business</span>
+                </a>
+                <a href="/#jobs" class="nav-link">
+                    <i class="fas fa-briefcase"></i>
+                    <span>Jobs</span>
+                </a>
+            </nav>
+
+            <button class="btn btn-icon theme-toggle">
+                <i class="fas fa-moon"></i>
+            </button>
+            
+            <button class="menu-toggle">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Terms of Service Content -->
+    <main class="terms-container">
+        <div class="terms-header">
+            <h1 class="terms-title">Terms of Service</h1>
+            <p class="terms-date">Last Updated: {{ now.strftime('%B %d, %Y') }}</p>
+        </div>
+
+        <div class="important-note">
+            <h4><i class="fas fa-exclamation-triangle"></i> Important Notice</h4>
+            <p>By accessing and using {{ config.SITE_NAME }}, you accept and agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our website.</p>
+        </div>
+
+        <div class="terms-section">
+            <h2 class="section-title">1. Acceptance of Terms</h2>
+            <div class="terms-content">
+                <p>These Terms of Service ("Terms") govern your access to and use of {{ config.SITE_NAME }} ("Website," "Service," "we," "us," or "our"). By accessing or using our Website, you agree to be bound by these Terms.</p>
+                
+                <p>If you are accessing or using the Website on behalf of a company or other legal entity, you represent that you have the authority to bind such entity to these Terms.</p>
+            </div>
+        </div>
+
+        <div class="terms-section">
+            <h2 class="section-title">2. Description of Service</h2>
+            <div class="terms-content">
+                <p>{{ config.SITE_NAME }} is a news aggregation website that collects and displays news content from various South African sources. Our service includes:</p>
+                
+                <ul>
+                    <li>Aggregating news articles from trusted sources</li>
+                    <li>Categorizing content for easy navigation</li>
+                    <li>Providing search functionality</li>
+                    <li>Sending newsletter updates (optional)</li>
+                    <li>Offering a chatbot for information assistance</li>
+                </ul>
+                
+                <p>We reserve the right to modify, suspend, or discontinue any part of our Service at any time without prior notice.</p>
+            </div>
+        </div>
+
+        <div class="terms-section">
+            <h2 class="section-title">3. Content Disclaimer</h2>
+            <div class="terms-content">
+                <div class="highlight">
+                    <p><strong>Important:</strong> {{ config.SITE_NAME }} is a news aggregator. We do not create original news content.</p>
+                </div>
+                
+                <p><strong>Accuracy of Information:</strong> While we strive to provide accurate information, we cannot guarantee the accuracy, completeness, or timeliness of the content displayed on our Website. The news articles are sourced from third-party providers, and we do not verify the accuracy of each article.</p>
+                
+                <p><strong>Source Attribution:</strong> All news articles are properly attributed to their original sources. We do not claim ownership of any news content displayed on our Website.</p>
+                
+                <p><strong>Not Professional Advice:</strong> The content on our Website is for informational purposes only and should not be considered professional advice. Always seek the advice of qualified professionals regarding any specific situation.</p>
+            </div>
+        </div>
+
+        <div class="terms-section">
+            <h2 class="section-title">4. User Responsibilities</h2>
+            <div class="terms-content">
+                <p>When using our Website, you agree to:</p>
+                
+                <ul>
+                    <li>Use the Website only for lawful purposes</li>
+                    <li>Not attempt to circumvent any security measures</li>
+                    <li>Not use automated systems to access our Website without permission</li>
+                    <li>Not interfere with or disrupt the Service</li>
+                    <li>Not collect or harvest any personally identifiable information</li>
+                    <li>Not engage in any activity that could damage, disable, or impair our servers or networks</li>
+                </ul>
+                
+                <p>You are solely responsible for your conduct while using our Service and for any content you submit.</p>
+            </div>
+        </div>
+
+        <div class="terms-section">
+            <h2 class="section-title">5. Intellectual Property</h2>
+            <div class="terms-content">
+                <p><strong>Our Content:</strong> The Website design, layout, logo, and original content created by {{ config.SITE_NAME }} are protected by copyright and other intellectual property laws.</p>
+                
+                <p><strong>Third-Party Content:</strong> News articles and other content from third-party sources remain the property of their respective owners. We display this content under fair use principles for informational purposes.</p>
+                
+                <p><strong>Limited License:</strong> We grant you a limited, non-exclusive, non-transferable license to access and use our Service for personal, non-commercial purposes.</p>
+                
+                <p><strong>Restrictions:</strong> You may not:</p>
+                <ul>
+                    <li>Copy, modify, or create derivative works of our Service</li>
+                    <li>Reverse engineer or attempt to extract source code</li>
+                    <li>Use our Service for commercial purposes without permission</li>
+                    <li>Remove any copyright or proprietary notices</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="terms-section">
+            <h2 class="section-title">6. Third-Party Links</h2>
+            <div class="terms-content">
+                <p>Our Service may contain links to third-party websites or services that are not owned or controlled by {{ config.SITE_NAME }}.</p>
+                
+                <p>We have no control over, and assume no responsibility for, the content, privacy policies, or practices of any third-party websites or services. You acknowledge and agree that {{ config.SITE_NAME }} shall not be responsible or liable, directly or indirectly, for any damage or loss caused or alleged to be caused by or in connection with use of or reliance on any such content, goods, or services available on or through any such websites or services.</p>
+                
+                <p>We strongly advise you to read the terms and conditions and privacy policies of any third-party websites or services that you visit.</p>
+            </div>
+        </div>
+
+        <div class="terms-section">
+            <h2 class="section-title">7. Limitation of Liability</h2>
+            <div class="terms-content">
+                <p>To the maximum extent permitted by applicable law, {{ config.SITE_NAME }} and its affiliates, officers, employees, agents, partners, and licensors shall not be liable for:</p>
+                
+                <ul>
+                    <li>Any indirect, incidental, special, consequential, or punitive damages</li>
+                    <li>Loss of profits, data, use, goodwill, or other intangible losses</li>
+                    <li>Damages resulting from:
+                        <ul>
+                            <li>Your access to or use of or inability to access or use the Service</li>
+                            <li>Any conduct or content of any third party on the Service</li>
+                            <li>Any content obtained from the Service</li>
+                            <li>Unauthorized access, use, or alteration of your transmissions or content</li>
+                        </ul>
+                    </li>
+                </ul>
+                
+                <p>This limitation applies regardless of the legal theory (contract, tort, or otherwise) and even if we have been advised of the possibility of such damages.</p>
+            </div>
+        </div>
+
+        <div class="terms-section">
+            <h2 class="section-title">8. Disclaimer of Warranties</h2>
+            <div class="terms-content">
+                <p>Your use of the Service is at your sole risk. The Service is provided on an "AS IS" and "AS AVAILABLE" basis. The Service is provided without warranties of any kind, whether express or implied, including, but not limited to, implied warranties of merchantability, fitness for a particular purpose, non-infringement, or course of performance.</p>
+                
+                <p>{{ config.SITE_NAME }} does not warrant that:</p>
+                <ul>
+                    <li>The Service will function uninterrupted, secure, or available at any particular time or location</li>
+                    <li>Any errors or defects will be corrected</li>
+                    <li>The Service is free of viruses or other harmful components</li>
+                    <li>The results of using the Service will meet your requirements</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="terms-section">
+            <h2 class="section-title">9. Indemnification</h2>
+            <div class="terms-content">
+                <p>You agree to defend, indemnify, and hold harmless {{ config.SITE_NAME }} and its affiliates, officers, employees, agents, partners, and licensors from and against any claims, damages, obligations, losses, liabilities, costs, or debt, and expenses (including but not limited to attorney's fees) arising from:</p>
+                
+                <ul>
+                    <li>Your use of and access to the Service</li>
+                    <li>Your violation of any term of these Terms</li>
+                    <li>Your violation of any third-party right, including without limitation any copyright, property, or privacy right</li>
+                    <li>Any claim that your use of the Service caused damage to a third party</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="terms-section">
+            <h2 class="section-title">10. Changes to Terms</h2>
+            <div class="terms-content">
+                <p>We reserve the right, at our sole discretion, to modify or replace these Terms at any time. If a revision is material, we will provide at least 30 days' notice prior to any new terms taking effect.</p>
+                
+                <p>What constitutes a material change will be determined at our sole discretion. By continuing to access or use our Service after those revisions become effective, you agree to be bound by the revised terms.</p>
+                
+                <p>If you do not agree to the new terms, you must stop using the Service.</p>
+            </div>
+        </div>
+
+        <div class="terms-section">
+            <h2 class="section-title">11. Governing Law</h2>
+            <div class="terms-content">
+                <p>These Terms shall be governed and construed in accordance with the laws of South Africa, without regard to its conflict of law provisions.</p>
+                
+                <p>Our failure to enforce any right or provision of these Terms will not be considered a waiver of those rights. If any provision of these Terms is held to be invalid or unenforceable by a court, the remaining provisions of these Terms will remain in effect.</p>
+            </div>
+        </div>
+
+        <div class="terms-section">
+            <h2 class="section-title">12. Contact Information</h2>
+            <div class="terms-content">
+                <p>If you have any questions about these Terms, please contact us at:</p>
+                
+                <div style="background: var(--bg-secondary); padding: 20px; border-radius: 8px; margin-top: 20px;">
+                    <p><strong>{{ config.SITE_NAME }}</strong></p>
+                    <p><i class="fas fa-envelope"></i> {{ config.CONTACT_EMAIL }}</p>
+                    <p><i class="fas fa-phone"></i> {{ config.CONTACT_PHONE }}</p>
+                    <p><i class="fas fa-map-marker-alt"></i> {{ config.PHYSICAL_ADDRESS }}</p>
+                </div>
+            </div>
+        </div>
+
+        <a href="/" class="back-home">
+            <i class="fas fa-arrow-left"></i>
+            Back to Home
+        </a>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-col">
+                    <div class="logo" style="margin-bottom: 20px;">
+                        <div class="logo-icon">
+                            <i class="fas fa-flag"></i>
+                        </div>
+                        <span>{{ config.SITE_NAME }}</span>
+                    </div>
+                    <p style="color: #a0aec0; margin-bottom: 20px; line-height: 1.6;">
+                        Your trusted source for South African news and information.
+                    </p>
+                </div>
+
+                <div class="footer-col">
+                    <h3>Legal</h3>
+                    <ul class="footer-links">
+                        <li><a href="/privacy"><i class="fas fa-chevron-right"></i> Privacy Policy</a></li>
+                        <li><a href="/terms"><i class="fas fa-chevron-right"></i> Terms of Service</a></li>
+                        <li><a href="/disclaimer"><i class="fas fa-chevron-right"></i> Disclaimer</a></li>
+                        <li><a href="/contact"><i class="fas fa-chevron-right"></i> Contact Us</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                <p>&copy; {{ now.year }} {{ config.SITE_NAME }}. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Disclaimer - {{ config.SITE_NAME }}</title>
+    <meta name="description" content="Disclaimer for {{ config.SITE_NAME }}">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <style>
+        .disclaimer-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 80px 20px;
+        }
+        
+        .disclaimer-header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+        
+        .disclaimer-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 15px;
+        }
+        
+        .warning-box {
+            background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+            padding: 30px;
+            border-radius: 15px;
+            margin: 30px 0;
+            border-left: 6px solid #ef476f;
+            text-align: center;
+        }
+        
+        .warning-icon {
+            font-size: 3rem;
+            color: #ef476f;
+            margin-bottom: 20px;
+        }
+        
+        .warning-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #d32f2f;
+            margin-bottom: 15px;
+        }
+        
+        .disclaimer-section {
+            margin-bottom: 40px;
+        }
+        
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--border-color);
+        }
+        
+        .disclaimer-content {
+            color: var(--text-secondary);
+            line-height: 1.8;
+        }
+        
+        .disclaimer-content p {
+            margin-bottom: 20px;
+        }
+        
+        .disclaimer-content ul {
+            margin-bottom: 20px;
+            padding-left: 20px;
+        }
+        
+        .disclaimer-content li {
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+        
+        .highlight-box {
+            background: var(--bg-secondary);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid var(--warning);
+        }
+        
+        .back-home {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 40px;
+            padding: 12px 25px;
+            background: var(--primary);
+            color: white;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.3s easy;
+        }
+        
+        .back-home:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(67, 97, 238, 0.2);
+        }
+        
+        .source-list {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        .source-list li {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="navbar">
+        <div class="container navbar-container">
+            <a href="/" class="logo">
+                <div class="logo-icon">
+                    <i class="fas fa-flag"></i>
+                </div>
+                <span>{{ config.SITE_NAME }}</span>
+            </a>
+
+            <nav class="nav-menu">
+                <a href="/" class="nav-link">
+                    <i class="fas fa-home"></i>
+                    <span>Home</span>
+                </a>
+                <a href="/#news" class="nav-link">
+                    <i class="fas fa-newspaper"></i>
+                    <span>News</span>
+                </a>
+                <a href="/#business" class="nav-link">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Business</span>
+                </a>
+                <a href="/#jobs" class="nav-link">
+                    <i class="fas fa-briefcase"></i>
+                    <span>Jobs</span>
+                </a>
+            </nav>
+
+            <button class="btn btn-icon theme-toggle">
+                <i class="fas fa-moon"></i>
+            </button>
+            
+            <button class="menu-toggle">
+                <span></span>
+                <span></span>
+                <span></span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Disclaimer Content -->
+    <main class="disclaimer-container">
+        <div class="disclaimer-header">
+            <h1 class="disclaimer-title">Website Disclaimer</h1>
+            <p style="color: var(--text-secondary);">Important information regarding the use of {{ config.SITE_NAME }}</p>
+        </div>
+
+        <div class="warning-box">
+            <div class="warning-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h2 class="warning-title">Important Legal Notice</h2>
+            <p style="color: #d32f2f; font-weight: 500;">{{ config.SITE_NAME }} is a news aggregation service. We do not create original news content. Please read this disclaimer carefully before using our website.</p>
+        </div>
+
+        <div class="disclaimer-section">
+            <h2 class="section-title">1. Nature of Service</h2>
+            <div class="disclaimer-content">
+                <p>{{ config.SITE_NAME }} operates as a news aggregation platform. Our service consists of:</p>
+                
+                <ul>
+                    <li>Collecting news articles from various South African sources</li>
+                    <li>Organizing content into categories for easy access</li>
+                    <li>Providing links to original sources</li>
+                    <li>Displaying excerpts and summaries of news articles</li>
+                </ul>
+                
+                <div class="highlight-box">
+                    <p><strong>Key Point:</strong> We are not a news publisher. We do not write, edit, or verify the accuracy of the news articles displayed on our platform.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="disclaimer-section">
+            <h2 class="section-title">2. Content Accuracy Disclaimer</h2>
+            <div class="disclaimer-content">
+                <p><strong>No Guarantee of Accuracy:</strong> While we strive to provide reliable information, we cannot guarantee the accuracy, completeness, or timeliness of the content displayed on our website. The information is provided "as is" without warranty of any kind.</p>
+                
+                <p><strong>Third-Party Content:</strong> All news articles, images, and other media displayed on our website are sourced from third-party providers. We do not control or verify the content provided by these sources.</p>
+                
+                <p><strong>Potential Errors:</strong> News articles may contain errors, inaccuracies, or outdated information. We recommend verifying important information directly with the original sources.</p>
+                
+                <p><strong>Breaking News:</strong> During breaking news events, information may change rapidly. What is reported initially may be incomplete or subject to change as more information becomes available.</p>
+            </div>
+        </div>
+
+        <div class="disclaimer-section">
+            <h2 class="section-title">3. Source Attribution</h2>
+            <div class="disclaimer-content">
+                <p>We attribute all news content to their original sources. Each article displayed on our website includes:</p>
+                
+                <ul>
+                    <li>Source name and publication</li>
+                    <li>Link to the original article</li>
+                    <li>Publication date when available</li>
+                </ul>
+                
+                <p><strong>Copyright Notice:</strong> All news content remains the intellectual property of their respective copyright holders. We display this content under fair use principles for informational purposes.</p>
+                
+                <p><strong>Source Independence:</strong> The inclusion of any particular source on our website does not imply endorsement of that source's views, opinions, or editorial stance.</p>
+            </div>
+        </div>
+
+        <div class="disclaimer-section">
+            <h2 class="section-title">4. Not Professional Advice</h2>
+            <div class="disclaimer-content">
+                <div class="highlight-box">
+                    <p><strong>Important:</strong> The information on this website is for general informational purposes only and should not be considered professional advice.</p>
+                </div>
+                
+                <p><strong>Financial Information:</strong> Business and financial news should not be considered financial advice. Always consult with qualified financial advisors before making investment decisions.</p>
+                
+                <p><strong>Legal Information:</strong> News about legal matters should not be considered legal advice. Consult with qualified legal professionals for legal guidance.</p>
+                
+                <p><strong>Health Information:</strong> Health-related news should not be considered medical advice. Always consult with healthcare professionals for medical concerns.</p>
+                
+                <p><strong>Employment Information:</strong> Job listings and career news should not be considered employment advice. Verify all employment opportunities through official channels.</p>
+            </div>
+        </div>
+
+        <div class="disclaimer-section">
+            <h2 class="section-title">5. External Links Disclaimer</h2>
+            <div class="disclaimer-content">
+                <p>Our website contains links to external websites that are not provided or maintained by or in any way affiliated with {{ config.SITE_NAME }}.</p>
+                
+                <p><strong>No Control Over External Content:</strong> We have no control over the nature, content, and availability of those external websites. The inclusion of any links does not necessarily imply a recommendation or endorse the views expressed within them.</p>
+                
+                <p><strong>Link Accuracy:</strong> While we strive to provide only quality links to useful and ethical websites, we have no control over the content and nature of these sites. Links to other websites may change without notice.</p>
+                
+                <p><strong>Privacy Policies:</strong> External sites have their own privacy policies and terms of service. We encourage you to review the privacy policies and terms of service of any external sites you visit.</p>
+            </div>
+        </div>
+
+        <div class="disclaimer-section">
+            <h2 class="section-title">6. Limitation of Liability</h2>
+            <div class="disclaimer-content">
+                <p>In no event shall {{ config.SITE_NAME }}, its owners, employees, or affiliates be liable for any direct, indirect, incidental, consequential, special, or exemplary damages arising from:</p>
+                
+                <ul>
+                    <li>Your use or inability to use our service</li>
+                    <li>Any errors or omissions in the content</li>
+                    <li>Any decisions made based on information from our website</li>
+                    <li>Any interruption or cessation of service</li>
+                    <li>Viruses or other harmful components obtained through our service</li>
+                    <li>Unauthorized access to or use of our servers</li>
+                </ul>
+                
+                <p>This limitation of liability applies whether the alleged liability is based on contract, tort, negligence, strict liability, or any other basis, even if we have been advised of the possibility of such damage.</p>
+            </div>
+        </div>
+
+        <div class="disclaimer-section">
+            <h2 class="section-title">7. User Responsibility</h2>
+            <div class="disclaimer-content">
+                <p>Users of {{ config.SITE_NAME }} acknowledge and agree that:</p>
+                
+                <ul>
+                    <li>They use the website at their own risk</li>
+                    <li>They are responsible for verifying information from original sources</li>
+                    <li>They should not rely solely on information from our website for important decisions</li>
+                    <li>They should use critical thinking when consuming news from any source</li>
+                    <li>They are responsible for protecting their own devices from malware</li>
+                </ul>
+                
+                <p><strong>Due Diligence:</strong> We encourage users to practice due diligence and verify important information through multiple reliable sources.</p>
+            </div>
+        </div>
+
+        <div class="disclaimer-section">
+            <h2 class="section-title">8. Changes to Content and Service</h2>
+            <div class="disclaimer-content">
+                <p>We reserve the right to:</p>
+                
+                <ul>
+                    <li>Modify or discontinue any part of our service without notice</li>
+                    <li>Update, change, or remove content at any time</li>
+                    <li>Add or remove news sources from our aggregation</li>
+                    <li>Change the layout and design of our website</li>
+                </ul>
+                
+                <p>We are not liable to you or any third party for any modification, suspension, or discontinuance of the service.</p>
+            </div>
+        </div>
+
+        <div class="disclaimer-section">
+            <h2 class="section-title">9. Contact for Corrections</h2>
+            <div class="disclaimer-content">
+                <p>If you believe any content on our website contains errors or needs correction:</p>
+                
+                <div style="background: var(--bg-secondary); padding: 20px; border-radius: 8px; margin-top: 20px;">
+                    <p><strong>Please contact the original source directly.</strong> Since we do not create or edit the news content, we cannot make corrections to articles.</p>
+                    
+                    <p>If you are the copyright owner of content displayed on our website and believe it violates fair use principles, please contact us at:</p>
+                    
+                    <p><i class="fas fa-envelope"></i> {{ config.CONTACT_EMAIL }}</p>
+                </div>
+                
+                <p style="margin-top: 20px;">We will promptly address legitimate copyright concerns in accordance with applicable laws.</p>
+            </div>
+        </div>
+
+        <div class="disclaimer-section">
+            <h2 class="section-title">10. Acceptance of Disclaimer</h2>
+            <div class="disclaimer-content">
+                <p>By using {{ config.SITE_NAME }}, you hereby consent to our disclaimer and agree to its terms.</p>
+                
+                <p>If you do not agree with any part of this disclaimer, you must not use our website.</p>
+                
+                <p>This disclaimer was last updated on {{ now.strftime('%B %d, %Y') }} and may be updated periodically. Continued use of the website after changes to this disclaimer will be deemed as acceptance of those changes.</p>
+            </div>
+        </div>
+
+        <a href="/" class="back-home">
+            <i class="fas fa-arrow-left"></i>
+            Back to Home
+        </a>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div class="footer-col">
+                    <div class="logo" style="margin-bottom: 20px;">
+                        <div class="logo-icon">
+                            <i class="fas fa-flag"></i>
+                        </div>
+                        <span>{{ config.SITE_NAME }}</span>
+                    </div>
+                    <p style="color: #a0aec0; margin-bottom: 20px; line-height: 1.6;">
+                        Your trusted source for South African news and information.
+                    </p>
+                </div>
+
+                <div class="footer-col">
+                    <h3>Legal</h3>
+                    <ul class="footer-links">
+                        <li><a href="/privacy"><i class="fas fa-chevron-right"></i> Privacy Policy</a></li>
+                        <li><a href="/terms"><i class="fas fa-chevron-right"></i> Terms of Service</a></li>
+                        <li><a href="/disclaimer"><i class="fas fa-chevron-right"></i> Disclaimer</a></li>
+                        <li><a href="/contact"><i class="fas fa-chevron-right"></i> Contact Us</a></li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="footer-bottom">
+                <p>&copy; {{ now.year }} {{ config.SITE_NAME }}. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

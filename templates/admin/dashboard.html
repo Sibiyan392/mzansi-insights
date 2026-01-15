@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - {{ config.SITE_NAME }}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --admin-primary: #1a365d;
+            --admin-secondary: #2d3748;
+            --admin-accent: #3182ce;
+            --admin-success: #38a169;
+            --admin-warning: #d69e2e;
+            --admin-danger: #e53e3e;
+            
+            --admin-bg: #f7fafc;
+            --admin-card: #ffffff;
+            --admin-border: #e2e8f0;
+            --admin-text: #2d3748;
+            --admin-text-light: #718096;
+            
+            --admin-radius: 10px;
+            --admin-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Poppins', sans-serif; 
+            background: var(--admin-bg);
+            color: var(--admin-text);
+            display: flex;
+            min-height: 100vh;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: 250px;
+            background: var(--admin-card);
+            border-right: 1px solid var(--admin-border);
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--admin-shadow);
+        }
+        .sidebar-header {
+            padding: 30px 20px;
+            border-bottom: 1px solid var(--admin-border);
+        }
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--admin-primary);
+        }
+        .logo i { color: var(--admin-accent); }
+        .sidebar-nav {
+            flex: 1;
+            padding: 20px 0;
+        }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 15px 20px;
+            color: var(--admin-text-light);
+            text-decoration: none;
+            transition: all 0.3s;
+            border-left: 3px solid transparent;
+        }
+        .nav-item:hover {
+            background: #edf2f7;
+            color: var(--admin-primary);
+            border-left-color: var(--admin-accent);
+        }
+        .nav-item.active {
+            background: #ebf8ff;
+            color: var(--admin-accent);
+            border-left-color: var(--admin-accent);
+            font-weight: 500;
+        }
+        .nav-item i { width: 20px; }
+        .sidebar-footer {
+            padding: 20px;
+            border-top: 1px solid var(--admin-border);
+        }
+        
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+        }
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--admin-border);
+        }
+        .page-title {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: var(--admin-primary);
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            background: var(--admin-accent);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: var(--admin-card);
+            border-radius: var(--admin-radius);
+            padding: 25px;
+            box-shadow: var(--admin-shadow);
+            border-top: 4px solid var(--admin-accent);
+        }
+        .stat-card.success { border-color: var(--admin-success); }
+        .stat-card.warning { border-color: var(--admin-warning); }
+        .stat-card.danger { border-color: var(--admin-danger); }
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .stat-icon {
+            width: 50px;
+            height: 50px;
+            background: #ebf8ff;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--admin-accent);
+            font-size: 1.5rem;
+        }
+        .stat-card.success .stat-icon { background: #f0fff4; color: var(--admin-success); }
+        .stat-card.warning .stat-icon { background: #fffaf0; color: var(--admin-warning); }
+        .stat-card.danger .stat-icon { background: #fff5f5; color: var(--admin-danger); }
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        .stat-label {
+            color: var(--admin-text-light);
+            font-size: 0.9rem;
+        }
+        
+        /* Automation Controls */
+        .automation-section {
+            background: var(--admin-card);
+            border-radius: var(--admin-radius);
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: var(--admin-shadow);
+        }
+        .section-title {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: var(--admin-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .automation-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .control-card {
+            background: #f8fafc;
+            border: 1px solid var(--admin-border);
+            border-radius: 10px;
+            padding: 25px;
+            transition: transform 0.3s;
+        }
+        .control-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--admin-accent);
+        }
+        .control-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .control-icon {
+            width: 50px;
+            height: 50px;
+            background: #ebf8ff;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--admin-accent);
+            font-size: 1.5rem;
+        }
+        .control-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        .control-status {
+            display: inline-block;
+            padding: 3px 10px;
+            background: var(--admin-success);
+            color: white;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-left: 10px;
+        }
+        .control-status.off { background: var(--admin-text-light); }
+        .control-description {
+            color: var(--admin-text-light);
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+        }
+        .control-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-primary {
+            background: var(--admin-accent);
+            color: white;
+        }
+        .btn-primary:hover { background: #2c5282; }
+        .btn-success {
+            background: var(--admin-success);
+            color: white;
+        }
+        .btn-warning {
+            background: var(--admin-warning);
+            color: white;
+        }
+        .btn-danger {
+            background: var(--admin-danger);
+            color: white;
+        }
+        
+        /* Schedule Grid */
+        .schedule-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .schedule-item {
+            background: #f8fafc;
+            border: 1px solid var(--admin-border);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+        }
+        .schedule-time {
+            font-weight: 600;
+            color: var(--admin-primary);
+        }
+        .schedule-status {
+            font-size: 0.8rem;
+            color: var(--admin-success);
+            margin-top: 5px;
+        }
+        
+        /* Recent Activity */
+        .activity-table {
+            width: 100%;
+            background: var(--admin-card);
+            border-radius: var(--admin-radius);
+            overflow: hidden;
+            box-shadow: var(--admin-shadow);
+        }
+        .activity-table th,
+        .activity-table td {
+            padding: 15px;
+            text-align: left;
+            border-bottom: 1px solid var(--admin-border);
+        }
+        .activity-table th {
+            background: #f8fafc;
+            font-weight: 600;
+            color: var(--admin-primary);
+        }
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        .status-published { background: #c6f6d5; color: #22543d; }
+        .status-draft { background: #fed7d7; color: #742a2a; }
+        .status-auto { background: #bee3f8; color: #2a4365; }
+        
+        /* Flash Messages */
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        .flash-message {
+            padding: 15px 20px;
+            border-radius: var(--admin-radius);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .flash-success {
+            background: #c6f6d5;
+            border-left: 4px solid var(--admin-success);
+            color: #22543d;
+        }
+        .flash-error {
+            background: #fed7d7;
+            border-left: 4px solid var(--admin-danger);
+            color: #742a2a;
+        }
+        .flash-info {
+            background: #bee3f8;
+            border-left: 4px solid var(--admin-accent);
+            color: #2a4365;
+        }
+        
+        @media (max-width: 768px) {
+            body { flex-direction: column; }
+            .sidebar { width: 100%; }
+            .automation-controls { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <div class="logo">
+                <i class="fas fa-robot"></i>
+                <span>{{ config.SITE_NAME }} Admin</span>
+            </div>
+        </div>
+        
+        <nav class="sidebar-nav">
+            <a href="/admin/dashboard" class="nav-item active">
+                <i class="fas fa-tachometer-alt"></i>
+                <span>Dashboard</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="fas fa-newspaper"></i>
+                <span>All Posts</span>
+                <span style="margin-left: auto; background: #e2e8f0; padding: 2px 8px; border-radius: 10px; font-size: 0.8rem;">
+                    {{ total_posts }}
+                </span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="fas fa-plus-circle"></i>
+                <span>Create Post</span>
+            </a>
+            
+            <div style="margin-top: 30px; padding: 0 20px 10px; color: var(--admin-text-light); font-size: 0.9rem; font-weight: 500;">
+                AUTOMATION
+            </div>
+            
+            <a href="#" class="nav-item">
+                <i class="fas fa-bolt"></i>
+                <span>Auto-Post System</span>
+                <span class="control-status">ON</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="fas fa-rss"></i>
+                <span>RSS Feeds</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="fas fa-clock"></i>
+                <span>Scheduler</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="fas fa-chart-line"></i>
+                <span>Analytics</span>
+            </a>
+            
+            <div style="margin-top: 30px; padding: 0 20px 10px; color: var(--admin-text-light); font-size: 0.9rem; font-weight: 500;">
+                SETTINGS
+            </div>
+            
+            <a href="#" class="nav-item">
+                <i class="fas fa-cog"></i>
+                <span>System Settings</span>
+            </a>
+            <a href="#" class="nav-item">
+                <i class="fas fa-database"></i>
+                <span>Database</span>
+            </a>
+        </nav>
+        
+        <div class="sidebar-footer">
+            <a href="/" target="_blank" class="nav-item">
+                <i class="fas fa-external-link-alt"></i>
+                <span>View Site</span>
+            </a>
+            <a href="/admin/logout" class="nav-item">
+                <i class="fas fa-sign-out-alt"></i>
+                <span>Logout</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Topbar -->
+        <div class="topbar">
+            <h1 class="page-title">🤖 Admin Dashboard</h1>
+            <div class="user-info">
+                <div class="user-avatar">
+                    <i class="fas fa-user-shield"></i>
+                </div>
+                <div>
+                    <div style="font-weight: 500;">{{ current_user.username }}</div>
+                    <div style="font-size: 0.8rem; color: var(--admin-text-light);">Administrator</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Flash Messages -->
+        <div class="flash-messages">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">
+                            <i class="fas fa-{{ 'check-circle' if category == 'success' else 'exclamation-circle' if category == 'error' else 'info-circle' }}"></i>
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+        
+        <!-- Stats -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-header">
+                    <div class="stat-icon">
+                        <i class="fas fa-newspaper"></i>
+                    </div>
+                </div>
+                <div class="stat-value">{{ total_posts }}</div>
+                <div class="stat-label">Total Posts</div>
+            </div>
+            
+            <div class="stat-card success">
+                <div class="stat-header">
+                    <div class="stat-icon">
+                        <i class="fas fa-eye"></i>
+                    </div>
+                </div>
+                <div class="stat-value">{{ total_views }}</div>
+                <div class="stat-label">Total Views</div>
+            </div>
+            
+            <div class="stat-card warning">
+                <div class="stat-header">
+                    <div class="stat-icon">
+                        <i class="fas fa-robot"></i>
+                    </div>
+                </div>
+                <div class="stat-value">{{ recent_posts|selectattr('is_auto_generated')|list|length }}</div>
+                <div class="stat-label">Auto Posts</div>
+            </div>
+            
+            <div class="stat-card danger">
+                <div class="stat-header">
+                    <div class="stat-icon">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                </div>
+                <div class="stat-value">24/7</div>
+                <div class="stat-label">Uptime</div>
+            </div>
+        </div>
+        
+        <!-- Automation Controls -->
+        <div class="automation-section">
+            <h2 class="section-title">
+                <i class="fas fa-bolt"></i>
+                Automation System
+            </h2>
+            
+            <div class="automation-controls">
+                <!-- Content Generator -->
+                <div class="control-card">
+                    <div class="control-header">
+                        <div class="control-icon">
+                            <i class="fas fa-magic"></i>
+                        </div>
+                        <div>
+                            <div class="control-title">Content Generator</div>
+                            <span class="control-status">ACTIVE</span>
+                        </div>
+                    </div>
+                    <p class="control-description">
+                        Automatically generates posts from RSS feeds and news sources. Runs every 15 minutes.
+                    </p>
+                    <div class="control-actions">
+                        <button class="btn btn-primary" onclick="runContentGenerator()">
+                            <i class="fas fa-play"></i> Run Now
+                        </button>
+                        <button class="btn btn-warning">
+                            <i class="fas fa-cog"></i> Settings
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- RSS Importer -->
+                <div class="control-card">
+                    <div class="control-header">
+                        <div class="control-icon">
+                            <i class="fas fa-rss"></i>
+                        </div>
+                        <div>
+                            <div class="control-title">RSS Feed Importer</div>
+                            <span class="control-status">ACTIVE</span>
+                        </div>
+                    </div>
+                    <p class="control-description">
+                        Imports content from 12+ South African RSS feeds. Updates every 30 minutes.
+                    </p>
+                    <div class="control-actions">
+                        <button class="btn btn-primary" onclick="runRSSImporter()">
+                            <i class="fas fa-sync-alt"></i> Import Now
+                        </button>
+                        <button class="btn btn-warning">
+                            <i class="fas fa-list"></i> Feeds
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Scheduler -->
+                <div class="control-card">
+                    <div class="control-header">
+                        <div class="control-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div>
+                            <div class="control-title">Auto-Scheduler</div>
+                            <span class="control-status">ACTIVE</span>
+                        </div>
+                    </div>
+                    <p class="control-description">
+                        Scheduled tasks for content generation, cleanup, and maintenance.
+                    </p>
+                    <div class="schedule-grid">
+                        <div class="schedule-item">
+                            <div class="schedule-time">Every 15 min</div>
+                            <div class="schedule-status">Content</div>
+                        </div>
+                        <div class="schedule-item">
+                            <div class="schedule-time">Every 30 min</div>
+                            <div class="schedule-status">RSS</div>
+                        </div>
+                        <div class="schedule-item">
+                            <div class="schedule-time">Daily 2:00 AM</div>
+                            <div class="schedule-status">Cleanup</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Quick Stats -->
+            <div style="background: #f8fafc; padding: 20px; border-radius: 10px; margin-top: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h3 style="margin-bottom: 5px;">System Status</h3>
+                        <p style="color: var(--admin-text-light); font-size: 0.9rem;">
+                            Last run: 5 minutes ago • Next run: 10 minutes
+                        </p>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button class="btn btn-success" onclick="runAllAutomation()">
+                            <i class="fas fa-play-circle"></i> Run All Automation
+                        </button>
+                        <button class="btn btn-danger" onclick="stopAutomation()">
+                            <i class="fas fa-stop-circle"></i> Stop All
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Recent Activity -->
+        <div style="margin-top: 40px;">
+            <h2 class="section-title">
+                <i class="fas fa-history"></i>
+                Recent Activity
+            </h2>
+            
+            <table class="activity-table">
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Category</th>
+                        <th>Status</th>
+                        <th>Type</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for post in recent_posts %}
+                    <tr>
+                        <td>
+                            <strong>{{ post.title[:50] }}</strong>
+                            {% if post.title|length > 50 %}...{% endif %}
+                        </td>
+                        <td>{{ post.category_ref.name }}</td>
+                        <td>
+                            <span class="status-badge status-{{ 'published' if post.is_published else 'draft' }}">
+                                {{ 'Published' if post.is_published else 'Draft' }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if post.is_auto_generated %}
+                            <span class="status-badge status-auto">Auto</span>
+                            {% else %}
+                            <span>Manual</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ post.formatted_date }}</td>
+                        <td>
+                            <button class="btn" style="padding: 5px 10px; font-size: 0.8rem;">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-danger" style="padding: 5px 10px; font-size: 0.8rem;">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Automation control functions
+        function runContentGenerator() {
+            fetch('/admin/run-auto-post')
+                .then(response => response.json())
+                .then(data => {
+                    alert('Content generator started! Check logs for details.');
+                })
+                .catch(error => {
+                    alert('Error starting content generator: ' + error);
+                });
+        }
+        
+        function runRSSImporter() {
+            alert('RSS importer started! This may take a few minutes...');
+            // In production, this would make an API call
+        }
+        
+        function runAllAutomation() {
+            if (confirm('Run all automation tasks? This may take several minutes.')) {
+                alert('All automation tasks started! Check the logs for progress.');
+                // In production, this would trigger all automation
+            }
+        }
+        
+        function stopAutomation() {
+            if (confirm('Stop all automation tasks?')) {
+                alert('Automation stopped.');
+                // In production, this would stop background tasks
+            }
+        }
+        
+        // Auto-refresh stats every 30 seconds
+        setInterval(() => {
+            // In production, this would fetch updated stats
+            console.log('Auto-refreshing dashboard stats...');
+        }, 30000);
+        
+        // Real-time status indicator
+        const statusIndicator = document.querySelector('.control-status');
+        if (statusIndicator) {
+            setInterval(() => {
+                statusIndicator.style.opacity = statusIndicator.style.opacity === '0.5' ? '1' : '0.5';
+            }, 1000);
+        }
+    </script>
+</body>
+</html>

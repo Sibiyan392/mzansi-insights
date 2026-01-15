@@ -1,0 +1,612 @@
+﻿        <!DOCTYPE html>
+        <html lang="en" data-theme="light">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Contact Us - {{ config.SITE_NAME }}</title>
+            <meta name="description" content="Contact {{ config.SITE_NAME }}">
+            
+            <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+            <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+            
+            <style>
+                .contact-container {
+                    max-width: 1000px;
+                    margin: 0 auto;
+                    padding: 80px 20px;
+                }
+                
+                .contact-header {
+                    text-align: center;
+                    margin-bottom: 50px;
+                }
+                
+                .contact-title {
+                    font-size: 2.5rem;
+                    font-weight: 700;
+                    color: var(--text-primary);
+                    margin-bottom: 15px;
+                }
+                
+                .contact-subtitle {
+                    color: var(--text-secondary);
+                    font-size: 1.1rem;
+                    max-width: 600px;
+                    margin: 0 auto;
+                }
+                
+                .contact-grid {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 50px;
+                    margin-bottom: 60px;
+                }
+                
+                @media (max-width: 768px) {
+                    .contact-grid {
+                        grid-template-columns: 1fr;
+                        gap: 40px;
+                    }
+                }
+                
+                .contact-info {
+                    background: var(--bg-card);
+                    border-radius: 20px;
+                    padding: 40px;
+                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+                }
+                
+                .contact-form-container {
+                    background: var(--bg-card);
+                    border-radius: 20px;
+                    padding: 40px;
+                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+                }
+                
+                .info-title {
+                    font-size: 1.8rem;
+                    font-weight: 600;
+                    color: var(--text-primary);
+                    margin-bottom: 30px;
+                    position: relative;
+                    padding-bottom: 15px;
+                }
+                
+                .info-title::after {
+                    content: '';
+                    position: absolute;
+                    bottom: 0;
+                    left: 0;
+                    width: 60px;
+                    height: 4px;
+                    background: linear-gradient(to right, var(--primary), var(--secondary));
+                    border-radius: 2px;
+                }
+                
+                .info-item {
+                    display: flex;
+                    align-items: flex-start;
+                    gap: 20px;
+                    margin-bottom: 30px;
+                }
+                
+                .info-icon {
+                    width: 50px;
+                    height: 50px;
+                    background: linear-gradient(135deg, var(--primary), var(--secondary));
+                    border-radius: 12px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: white;
+                    font-size: 1.2rem;
+                    flex-shrink: 0;
+                }
+                
+                .info-content h4 {
+                    font-size: 1.1rem;
+                    font-weight: 600;
+                    margin-bottom: 5px;
+                    color: var(--text-primary);
+                }
+                
+                .info-content p {
+                    color: var(--text-secondary);
+                    line-height: 1.6;
+                }
+                
+                .social-links {
+                    display: flex;
+                    gap: 15px;
+                    margin-top: 30px;
+                }
+                
+                .social-link {
+                    width: 45px;
+                    height: 45px;
+                    background: var(--bg-secondary);
+                    border-radius: 10px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: var(--text-secondary);
+                    font-size: 1.2rem;
+                    transition: all 0.3s ease;
+                }
+                
+                .social-link:hover {
+                    background: var(--primary);
+                    color: white;
+                    transform: translateY(-3px);
+                }
+                
+                /* Form Styles */
+                .form-group {
+                    margin-bottom: 25px;
+                }
+                
+                .form-label {
+                    display: block;
+                    margin-bottom: 8px;
+                    font-weight: 500;
+                    color: var(--text-primary);
+                }
+                
+                .form-control {
+                    width: 100%;
+                    padding: 15px;
+                    border: 2px solid var(--border-color);
+                    border-radius: 10px;
+                    background: var(--bg-primary);
+                    color: var(--text-primary);
+                    font-family: 'Inter', sans-serif;
+                    font-size: 1rem;
+                    transition: all 0.3s ease;
+                }
+                
+                .form-control:focus {
+                    outline: none;
+                    border-color: var(--primary);
+                    box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+                }
+                
+                textarea.form-control {
+                    min-height: 150px;
+                    resize: vertical;
+                }
+                
+                .submit-btn {
+                    width: 100%;
+                    padding: 16px;
+                    background: linear-gradient(135deg, var(--primary), var(--secondary));
+                    color: white;
+                    border: none;
+                    border-radius: 10px;
+                    font-size: 1rem;
+                    font-weight: 600;
+                    cursor: pointer;
+                    transition: all 0.3s ease;
+                }
+                
+                .submit-btn:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 10px 20px rgba(67, 97, 238, 0.2);
+                }
+                
+                .submit-btn:disabled {
+                    opacity: 0.7;
+                    cursor: not-allowed;
+                }
+                
+                .form-status {
+                    margin-top: 20px;
+                    padding: 15px;
+                    border-radius: 10px;
+                    text-align: center;
+                    font-weight: 500;
+                }
+                
+                .form-status.success {
+                    background: #d4edda;
+                    color: #155724;
+                    border: 1px solid #c3e6cb;
+                }
+                
+                .form-status.error {
+                    background: #f8d7da;
+                    color: #721c24;
+                    border: 1px solid #f5c6cb;
+                }
+                
+                .hours-table {
+                    width: 100%;
+                    margin-top: 20px;
+                    border-collapse: collapse;
+                }
+                
+                .hours-table tr {
+                    border-bottom: 1px solid var(--border-color);
+                }
+                
+                .hours-table tr:last-child {
+                    border-bottom: none;
+                }
+                
+                .hours-table td {
+                    padding: 12px 0;
+                    color: var(--text-secondary);
+                }
+                
+                .hours-table td:first-child {
+                    font-weight: 500;
+                    color: var(--text-primary);
+                }
+                
+                .back-home {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 10px;
+                    margin-top: 40px;
+                    padding: 12px 25px;
+                    background: var(--primary);
+                    color: white;
+                    border-radius: 8px;
+                    text-decoration: none;
+                    font-weight: 500;
+                    transition: all 0.3s ease;
+                }
+                
+                .back-home:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 10px 20px rgba(67, 97, 238, 0.2);
+                }
+                
+                .map-container {
+                    margin-top: 20px;
+                    border-radius: 12px;
+                    overflow: hidden;
+                    height: 200px;
+                    background: var(--bg-secondary);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: var(--text-secondary);
+                }
+            </style>
+        </head>
+        <body>
+            <!-- Header -->
+            <header class="navbar">
+                <div class="container navbar-container">
+                    <a href="/" class="logo">
+                        <div class="logo-icon">
+                            <i class="fas fa-flag"></i>
+                        </div>
+                        <span>{{ config.SITE_NAME }}</span>
+                    </a>
+
+                    <nav class="nav-menu">
+                        <a href="/" class="nav-link">
+                            <i class="fas fa-home"></i>
+                            <span>Home</span>
+                        </a>
+                        <a href="/#news" class="nav-link">
+                            <i class="fas fa-newspaper"></i>
+                            <span>News</span>
+                        </a>
+                        <a href="/#business" class="nav-link">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Business</span>
+                        </a>
+                        <a href="/#jobs" class="nav-link">
+                            <i class="fas fa-briefcase"></i>
+                            <span>Jobs</span>
+                        </a>
+                    </nav>
+
+                    <button class="btn btn-icon theme-toggle">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                    
+                    <button class="menu-toggle">
+                        <span></span>
+                        <span></span>
+                        <span></span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Contact Content -->
+            <main class="contact-container">
+                <div class="contact-header">
+                    <h1 class="contact-title">Contact Us</h1>
+                    <p class="contact-subtitle">Get in touch with {{ config.SITE_NAME }}. We're here to help with any questions or concerns you may have.</p>
+                </div>
+
+                <div class="contact-grid">
+                    <!-- Contact Information -->
+                    <div class="contact-info">
+                        <h2 class="info-title">Get in Touch</h2>
+                        
+                        <div class="info-item">
+                            <div class="info-icon">
+                                <i class="fas fa-map-marker-alt"></i>
+                            </div>
+                            <div class="info-content">
+                                <h4>Our Location</h4>
+                                <p>{{ config.PHYSICAL_ADDRESS }}</p>
+                                <div class="map-container">
+                                    <i class="fas fa-map-marked-alt" style="font-size: 3rem;"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="info-item">
+                            <div class="info-icon">
+                                <i class="fas fa-envelope"></i>
+                            </div>
+                            <div class="info-content">
+                                <h4>Email Address</h4>
+                                <p>{{ config.CONTACT_EMAIL }}</p>
+                                <p style="font-size: 0.9rem; color: var(--text-muted); margin-top: 5px;">
+                                    We aim to respond within 24 hours
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div class="info-item">
+                            <div class="info-icon">
+                                <i class="fas fa-phone"></i>
+                            </div>
+                            <div class="info-content">
+                                <h4>Phone Number</h4>
+                                <p>{{ config.CONTACT_PHONE }}</p>
+                                <p style="font-size: 0.9rem; color: var(--text-muted); margin-top: 5px;">
+                                    Monday - Friday, 9:00 AM - 5:00 PM SAST
+                                </p>
+                            </div>
+                        </div>
+                        
+                        <div class="info-item">
+                            <div class="info-icon">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                            <div class="info-content">
+                                <h4>Business Hours</h4>
+                                <table class="hours-table">
+                                    <tr>
+                                        <td>Monday - Friday</td>
+                                        <td>9:00 AM - 5:00 PM</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Saturday</td>
+                                        <td>10:00 AM - 2:00 PM</td>
+                                    </tr>
+                                    <tr>
+                                        <td>Sunday</td>
+                                        <td>Closed</td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <h3 style="margin-top: 30px; margin-bottom: 15px; font-size: 1.2rem;">Follow Us</h3>
+                        <div class="social-links">
+                            <a href="#" class="social-link" aria-label="Twitter">
+                                <i class="fab fa-twitter"></i>
+                            </a>
+                            <a href="#" class="social-link" aria-label="Facebook">
+                                <i class="fab fa-facebook-f"></i>
+                            </a>
+                            <a href="#" class="social-link" aria-label="Instagram">
+                                <i class="fab fa-instagram"></i>
+                            </a>
+                            <a href="#" class="social-link" aria-label="LinkedIn">
+                                <i class="fab fa-linkedin-in"></i>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Contact Form -->
+                    <div class="contact-form-container">
+                        <h2 class="info-title">Send Us a Message</h2>
+                        <p style="color: var(--text-secondary); margin-bottom: 30px;">
+                            Fill out the form below and we'll get back to you as soon as possible.
+                        </p>
+                        
+                        <form id="contactForm">
+                            <div class="form-group">
+                                <label for="name" class="form-label">Full Name *</label>
+                                <input type="text" id="name" class="form-control" placeholder="Enter your full name" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="email" class="form-label">Email Address *</label>
+                                <input type="email" id="email" class="form-control" placeholder="Enter your email address" required>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="subject" class="form-label">Subject *</label>
+                                <select id="subject" class="form-control" required>
+                                    <option value="" disabled selected>Select a subject</option>
+                                    <option value="general">General Inquiry</option>
+                                    <option value="technical">Technical Support</option>
+                                    <option value="content">Content Related</option>
+                                    <option value="advertising">Advertising Inquiry</option>
+                                    <option value="privacy">Privacy Concern</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="message" class="form-label">Message *</label>
+                                <textarea id="message" class="form-control" placeholder="Type your message here..." required></textarea>
+                            </div>
+                            
+                            <button type="submit" class="submit-btn" id="submitBtn">
+                                <i class="fas fa-paper-plane"></i>
+                                Send Message
+                            </button>
+                            
+                            <div id="formStatus" class="form-status" style="display: none;"></div>
+                        </form>
+                        
+                        <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 20px;">
+                            * Required fields. By submitting this form, you agree to our 
+                            <a href="/privacy" style="color: var(--primary);">Privacy Policy</a>.
+                        </p>
+                    </div>
+                </div>
+
+                <!-- FAQ Section -->
+                <div style="margin-top: 60px; background: var(--bg-card); border-radius: 20px; padding: 40px;">
+                    <h2 style="font-size: 1.8rem; font-weight: 600; margin-bottom: 30px; color: var(--text-primary);">Frequently Asked Questions</h2>
+                    
+                    <div style="display: grid; gap: 20px;">
+                        <div class="faq-item">
+                            <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 10px; color: var(--text-primary);">
+                                <i class="fas fa-question-circle" style="color: var(--primary); margin-right: 10px;"></i>
+                                How quickly will I receive a response?
+                            </h3>
+                            <p style="color: var(--text-secondary); line-height: 1.6; padding-left: 30px;">
+                                We strive to respond to all inquiries within 24 hours during business days. For urgent matters, please call us directly.
+                            </p>
+                        </div>
+                        
+                        <div class="faq-item">
+                            <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 10px; color: var(--text-primary);">
+                                <i class="fas fa-question-circle" style="color: var(--primary); margin-right: 10px;"></i>
+                                Can I submit news tips or suggestions?
+                            </h3>
+                            <p style="color: var(--text-secondary); line-height: 1.6; padding-left: 30px;">
+                                Yes! We welcome news tips and suggestions. Please use the "Content Related" subject when submitting your message.
+                            </p>
+                        </div>
+                        
+                        <div class="faq-item">
+                            <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 10px; color: var(--text-primary);">
+                                <i class="fas fa-question-circle" style="color: var(--primary); margin-right: 10px;"></i>
+                                Do you offer advertising opportunities?
+                            </h3>
+                            <p style="color: var(--text-secondary); line-height: 1.6; padding-left: 30px;">
+                                Yes, we offer various advertising options. Select "Advertising Inquiry" in the contact form, and our advertising team will contact you.
+                            </p>
+                        </div>
+                        
+                        <div class="faq-item">
+                            <h3 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 10px; color: var(--text-primary);">
+                                <i class="fas fa-question-circle" style="color: var(--primary); margin-right: 10px;"></i>
+                                How do I report inaccurate information?
+                            </h3>
+                            <p style="color: var(--text-secondary); line-height: 1.6; padding-left: 30px;">
+                                Since we aggregate news from third-party sources, please contact the original source directly for content corrections. For technical issues with our website, use the "Technical Support" subject.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="text-align: center; margin-top: 40px;">
+                    <a href="/" class="back-home">
+                        <i class="fas fa-arrow-left"></i>
+                        Back to Home
+                    </a>
+                </div>
+            </main>
+
+            <!-- Footer -->
+            <footer class="footer">
+                <div class="container">
+                    <div class="footer-grid">
+                        <div class="footer-col">
+                            <div class="logo" style="margin-bottom: 20px;">
+                                <div class="logo-icon">
+                                    <i class="fas fa-flag"></i>
+                                </div>
+                                <span>{{ config.SITE_NAME }}</span>
+                            </div>
+                            <p style="color: #a0aec0; margin-bottom: 20px; line-height: 1.6;">
+                                Your trusted source for South African news and information.
+                            </p>
+                        </div>
+
+                        <div class="footer-col">
+                            <h3>Legal</h3>
+                            <ul class="footer-links">
+                                <li><a href="/privacy"><i class="fas fa-chevron-right"></i> Privacy Policy</a></li>
+                                <li><a href="/terms"><i class="fas fa-chevron-right"></i> Terms of Service</a></li>
+                                <li><a href="/disclaimer"><i class="fas fa-chevron-right"></i> Disclaimer</a></li>
+                                <li><a href="/contact"><i class="fas fa-chevron-right"></i> Contact Us</a></li>
+                            </ul>
+                        </div>
+
+                        <div class="footer-col">
+                            <h3>Contact Info</h3>
+                            <div style="color: #a0aec0; line-height: 1.8;">
+                                <p><i class="fas fa-envelope"></i> {{ config.CONTACT_EMAIL }}</p>
+                                <p><i class="fas fa-phone"></i> {{ config.CONTACT_PHONE }}</p>
+                                <p><i class="fas fa-map-marker-alt"></i> {{ config.PHYSICAL_ADDRESS }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="footer-bottom">
+                        <p>&copy; {{ now.year }} {{ config.SITE_NAME }}. All rights reserved.</p>
+                    </div>
+                </div>
+            </footer>
+
+            <!-- JavaScript -->
+            <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+            
+            <script>
+                // Contact form handling
+                document.getElementById('contactForm').addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const submitBtn = document.getElementById('submitBtn');
+                    const formStatus = document.getElementById('formStatus');
+                    
+                    // Get form values
+                    const name = document.getElementById('name').value;
+                    const email = document.getElementById('email').value;
+                    const subject = document.getElementById('subject').value;
+                    const message = document.getElementById('message').value;
+                    
+                    // Validate form
+                    if (!name || !email || !subject || !message) {
+                        showFormStatus('Please fill in all required fields.', 'error');
+                        return;
+                    }
+                    
+                    // Disable submit button
+                    submitBtn.disabled = true;
+                    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+                    
+                    // Simulate form submission (in a real app, this would be an AJAX call)
+                    setTimeout(() => {
+                        // Show success message
+                        showFormStatus('Thank you for your message! We\'ll get back to you soon.', 'success');
+                        
+                        // Reset form
+                        document.getElementById('contactForm').reset();
+                        
+                        // Re-enable submit button
+                        submitBtn.disabled = false;
+                        submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Send Message';
+                        
+                        // Clear status message after 5 seconds
+                        setTimeout(() => {
+                            formStatus.style.display = 'none';
+                        }, 5000);
+                    }, 1500);
+                });
+                
+                function showFormStatus(message, type) {
+                    const formStatus = document.getElementById('formStatus');
+                    formStatus.textContent = message;
+                    formStatus.className = `form-status ${type}`;
+                    formStatus.style.display = 'block';
+                }
+            </script>
+        </body>
+        </html>
