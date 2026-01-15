@@ -17,7 +17,6 @@ import requests
 import sys
 import io
 import logging
-from pathlib import Path
 
 # Fix Unicode encoding for Windows console
 if sys.platform == "win32":
@@ -38,7 +37,7 @@ class FlaskConfig:
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
     
     # Adsense IDs (EMPTY - YOU MUST GET YOUR OWN FROM GOOGLE)
-    ADSENSE_ID = os.environ.get('ADSENSE_ID', 'YOUR_ADSENSE_ID_HERE')  # REPLACE WITH YOUR ACTUAL ID
+    ADSENSE_ID = os.environ.get('ADSENSE_ID', 'YOUR_ADSENSE_ID_HERE')
     ADSENSE_SLOT_BANNER = "1234567890"
     ADSENSE_SLOT_INARTICLE = "1234567891"
     ADSENSE_SLOT_SQUARE = "1234567892"
@@ -201,7 +200,7 @@ CATEGORY_DEFINITIONS = {
         'description': 'Movies, music, celebrities, arts, culture, and entertainment industry news',
         'icon': 'film',
         'color': '#ef476f',
-        'keywords': ['ent entertainment', 'movie', 'music', 'celebrity', 'film', 'show', 'art', 'culture']
+        'keywords': ['entertainment', 'movie', 'music', 'celebrity', 'film', 'show', 'art', 'culture']
     },
     'business': {
         'name': 'Business',
@@ -266,6 +265,7 @@ def get_db_path():
 
 def setup_database():
     """Initialize database with proper tables and categories"""
+    print("🔄 Setting up database...")
     db_path = get_db_path()
     
     # Create directory if it doesn't exist
@@ -332,8 +332,10 @@ def setup_database():
         pwd_hash = generate_password_hash(FlaskConfig.ADMIN_PASSWORD)
         c.execute("INSERT INTO users (username, password_hash) VALUES (?, ?)", 
                  ('admin', pwd_hash))
+        print("✅ Created admin user")
     
     # Insert all categories from CATEGORY_DEFINITIONS
+    categories_added = 0
     for slug, cat_data in CATEGORY_DEFINITIONS.items():
         c.execute("SELECT COUNT(*) FROM categories WHERE slug = ?", (slug,))
         if c.fetchone()[0] == 0:
@@ -342,10 +344,12 @@ def setup_database():
                 VALUES (?, ?, ?, ?, ?)
             """, (cat_data['name'], cat_data['slug'], cat_data['description'], 
                   cat_data['icon'], cat_data['color']))
+            categories_added += 1
     
     conn.commit()
     conn.close()
-    print("✅ Database setup complete with all categories")
+    print(f"✅ Database setup complete - Added {categories_added} categories")
+    return True
 
 def get_db_connection():
     """Get database connection with row factory"""
@@ -585,12 +589,15 @@ class ContentUpdater:
             self.update_thread.start()
             print("✅ Auto-update service started")
 
-# Initialize content updater
-content_updater = ContentUpdater()
-
 # ============= FLASK APP SETUP =============
 app = Flask(__name__)
 app.config.from_object(FlaskConfig)
+
+# Initialize database when app starts
+print("=" * 70)
+print("🇿🇦 MZANSI INSIGHTS - ENHANCED VERSION 2.0")
+print("=" * 70)
+setup_database()
 
 # Flask-Login setup
 login_manager = LoginManager()
@@ -610,6 +617,9 @@ def load_user(user_id):
     if user_data:
         return User(user_data['id'], user_data['username'])
     return None
+
+# Initialize content updater
+content_updater = ContentUpdater()
 
 # ============= HELPER FUNCTIONS =============
 def get_time_ago(date_str):
@@ -1128,39 +1138,10 @@ def internal_server_error(e):
 
 # ============= START APPLICATION =============
 if __name__ == '__main__':
-    print("=" * 70)
-    print("🇿🇦 MZANSI INSIGHTS - ENHANCED VERSION 2.0")
-    print("=" * 70)
     print(f"Website: http://localhost:5000")
     print(f"Admin:   http://localhost:5000/admin/login")
     print(f"User:    {FlaskConfig.ADMIN_USERNAME}")
     print(f"Pass:    {FlaskConfig.ADMIN_PASSWORD}")
-    print(f"Contact: {FlaskConfig.CONTACT_EMAIL}")
-    print(f"Phone:   {FlaskConfig.CONTACT_PHONE}")
-    print("=" * 70)
-    print("🎯 NEW FEATURES:")
-    print("   • Enhanced category detection")
-    print("   • 10 comprehensive categories")
-    print("   • Improved content structure")
-    print("   • Better RSS feed handling")
-    print("   • Real-time statistics")
-    print("   • Live news ticker")
-    print("   • Enhanced search")
-    print("=" * 70)
-    print("📊 CATEGORIES:")
-    for cat in CATEGORY_DEFINITIONS.values():
-        print(f"   • {cat['name']}: {cat['description'][:50]}...")
-    print("=" * 70)
-    print("✅ AdSense Ready Features:")
-    print("   • Multiple ad placement slots")
-    print("   • Proper content labeling")
-    print("   • Privacy & legal pages")
-    print("   • Professional design")
-    print("   • High-quality content")
-    print("=" * 70)
-    
-    # Setup database
-    setup_database()
     
     # Start automatic content updates
     content_updater.start_auto_updates()
@@ -1168,3 +1149,8 @@ if __name__ == '__main__':
     # Start Flask app
     port = int(os.environ.get('PORT', 5000))
     app.run(debug=False, host='0.0.0.0', port=port, threaded=True)
+else:
+    # This runs when app is imported (e.g., by gunicorn)
+    print("🚀 Starting Mzansi Insights on Render...")
+    # Start auto-updates
+    content_updater.start_auto_updates()
