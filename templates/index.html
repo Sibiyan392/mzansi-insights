@@ -4,6 +4,52 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>{{ config.SITE_NAME }} - {{ config.SITE_DESCRIPTION }}</title>
+
+<!-- Google Analytics (GA4) - UPDATED WITH YOUR ACTUAL ID -->
+{% if config.GA_MEASUREMENT_ID %}
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id={{ config.GA_MEASUREMENT_ID }}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', '{{ config.GA_MEASUREMENT_ID }}');
+  
+  // Track custom events
+  document.addEventListener('DOMContentLoaded', function() {
+    // Track page views
+    gtag('event', 'page_view', {
+      page_title: document.title,
+      page_location: window.location.href,
+      page_path: window.location.pathname
+    });
+    
+    // Track newsletter signups
+    const newsletterForm = document.getElementById('newsletterForm');
+    if (newsletterForm) {
+      newsletterForm.addEventListener('submit', function() {
+        gtag('event', 'sign_up', {
+          method: 'Newsletter',
+          category: 'Engagement'
+        });
+      });
+    }
+    
+    // Track article clicks
+    document.querySelectorAll('.post-card, .category-card, .result-card').forEach(card => {
+      card.addEventListener('click', function() {
+        const title = this.querySelector('h3, .post-title, .result-title')?.textContent || 'Unknown';
+        gtag('event', 'select_content', {
+          content_type: 'article',
+          item_id: this.href || 'unknown',
+          item_name: title
+        });
+      });
+    });
+  });
+</script>
+{% endif %}
+
 <meta name="description" content="{{ config.SITE_DESCRIPTION }}" />
 <meta name="keywords" content="South African news, SA news, jobs, grants, SASSA, business, entertainment, technology, sports" />
 
@@ -1241,7 +1287,7 @@
       <div class="hero-stats">
         <div class="stat-card">
           <div class="stat-icon"><i class="fas fa-newspaper"></i></div>
-          <div class="stat-number" id="totalPosts">{{ posts|length }}</div>
+          <div class="stat-number" id="totalPosts">{{ stats.total_posts }}</div>
           <div class="stat-label">Articles</div>
         </div>
         <div class="stat-card">
@@ -1251,12 +1297,12 @@
         </div>
         <div class="stat-card">
           <div class="stat-icon"><i class="fas fa-clock"></i></div>
-          <div class="stat-number">30m</div>
+          <div class="stat-number">5m</div>
           <div class="stat-label">Updates</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon"><i class="fas fa-eye"></i></div>
-          <div class="stat-number" id="totalViews">{% if posts %}{{ posts|sum(attribute='views') }}{% else %}0{% endif %}</div>
+          <div class="stat-number" id="totalViews">{{ stats.total_views }}</div>
           <div class="stat-label">Views</div>
         </div>
       </div>
@@ -1302,13 +1348,13 @@
 </section>
 
 <!-- Featured Post -->
-{% if posts and posts[0] %}
+{% if featured_post %}
 <section class="featured-section">
   <div class="container">
     <div class="featured-post">
       <div class="featured-image">
-        {% if posts[0].image_url %}
-        <img src="{{ posts[0].image_url }}" alt="{{ posts[0].title }}" />
+        {% if featured_post.image_url %}
+        <img src="{{ featured_post.image_url }}" alt="{{ featured_post.title }}" />
         {% endif %}
         <div class="featured-badge">
           <i class="fas fa-fire"></i> FEATURED
@@ -1316,15 +1362,15 @@
       </div>
       <div class="featured-content">
         <div class="featured-meta">
-          <span class="post-category" style="background: {{ posts[0].category_ref.color }}20; color: {{ posts[0].category_ref.color }};">
-            <i class="fas fa-{{ posts[0].category_ref.icon }}"></i> {{ posts[0].category_ref.name }}
+          <span class="post-category" style="background: {{ featured_post.category_ref.color }}20; color: {{ featured_post.category_ref.color }};">
+            <i class="fas fa-{{ featured_post.category_ref.icon }}"></i> {{ featured_post.category_ref.name }}
           </span>
-          <span class="post-source"><i class="fas fa-building"></i> {{ posts[0].source_name }}</span>
-          <span class="post-source"><i class="fas fa-clock"></i> {{ posts[0].formatted_date }}</span>
+          <span class="post-source"><i class="fas fa-building"></i> {{ featured_post.source_name }}</span>
+          <span class="post-source"><i class="fas fa-clock"></i> {{ featured_post.formatted_date }}</span>
         </div>
-        <h2 class="featured-title">{{ posts[0].title }}</h2>
-        <p class="featured-excerpt">{{ posts[0].excerpt }}</p>
-        <a href="/post/{{ posts[0].slug }}" class="read-more-btn">
+        <h2 class="featured-title">{{ featured_post.title }}</h2>
+        <p class="featured-excerpt">{{ featured_post.excerpt }}</p>
+        <a href="/post/{{ featured_post.slug }}" class="read-more-btn">
           Read Full Article <i class="fas fa-arrow-right"></i>
         </a>
       </div>
@@ -1546,6 +1592,9 @@
       </p>
       <p style="font-size:0.8rem; margin-top:10px; opacity:0.7;">
         Content sourced from verified and trusted South African publications
+      </p>
+      <p style="font-size:0.75rem; margin-top:5px; opacity:0.6;">
+        Google Analytics: {{ config.GA_MEASUREMENT_ID }} • Auto-update: Every 5 minutes
       </p>
     </div>
   </div>
