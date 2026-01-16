@@ -1,683 +1,92 @@
 ﻿<!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>About Us - {{ config.SITE_NAME }}</title>
-    <meta name="description" content="About {{ config.SITE_NAME }}">
-    
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    
     <style>
-        .about-container {
-            max-width: 1000px;
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
             margin: 0 auto;
-            padding: 80px 20px;
-        }
-        
-        .about-header {
-            text-align: center;
-            margin-bottom: 50px;
-        }
-        
-        .about-title {
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: var(--text-primary);
-            margin-bottom: 15px;
-        }
-        
-        .about-subtitle {
-            color: var(--text-secondary);
-            font-size: 1.1rem;
-            max-width: 600px;
-            margin: 0 auto;
-        }
-        
-        .hero-section {
-            background: linear-gradient(135deg, #4361ee10 0%, #06d6a010 100%);
-            border-radius: 20px;
-            padding: 60px;
-            margin-bottom: 60px;
-            text-align: center;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .hero-section::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: 
-                radial-gradient(circle at 10% 20%, rgba(67, 97, 238, 0.1) 0%, transparent 50%),
-                radial-gradient(circle at 90% 80%, rgba(6, 214, 160, 0.1) 0%, transparent 50%);
-            z-index: 1;
-        }
-        
-        .hero-content {
-            position: relative;
-            z-index: 2;
-        }
-        
-        .sa-flag {
-            font-size: 4rem;
-            margin-bottom: 20px;
-            display: block;
-        }
-        
-        .mission-statement {
-            font-size: 1.5rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 20px;
-            line-height: 1.4;
-        }
-        
-        .section {
-            margin-bottom: 60px;
-        }
-        
-        .section-title {
-            font-size: 1.8rem;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 30px;
-            position: relative;
-            padding-bottom: 15px;
-        }
-        
-        .section-title::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 60px;
-            height: 4px;
-            background: linear-gradient(to right, var(--primary), var(--secondary));
-            border-radius: 2px;
-        }
-        
-        .section-content {
-            color: var(--text-secondary);
-            line-height: 1.8;
-        }
-        
-        .section-content p {
-            margin-bottom: 20px;
-        }
-        
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 30px;
-            margin-top: 30px;
-        }
-        
-        .feature-card {
-            background: var(--bg-card);
-            border-radius: 15px;
-            padding: 30px;
-            text-align: center;
-            border: 2px solid var(--border-color);
-            transition: all 0.3s ease;
-        }
-        
-        .feature-card:hover {
-            transform: translateY(-5px);
-            border-color: var(--primary);
-            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
-        }
-        
-        .feature-icon {
-            width: 70px;
-            height: 70px;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            border-radius: 15px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 20px;
-            color: white;
-            font-size: 1.8rem;
-        }
-        
-        .feature-title {
-            font-size: 1.2rem;
-            font-weight: 600;
-            margin-bottom: 15px;
-            color: var(--text-primary);
-        }
-        
-        .feature-desc {
-            color: var(--text-secondary);
-            font-size: 0.95rem;
-            line-height: 1.6;
-        }
-        
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 30px;
-            margin-top: 40px;
-        }
-        
-        .stat-card {
-            background: var(--bg-card);
-            border-radius: 15px;
-            padding: 30px;
-            text-align: center;
-            border: 2px solid var(--border-color);
-        }
-        
-        .stat-number {
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: var(--primary);
-            margin-bottom: 10px;
-        }
-        
-        .stat-label {
-            color: var(--text-secondary);
-            font-size: 0.95rem;
-            font-weight: 500;
-        }
-        
-        .values-list {
-            display: grid;
-            gap: 25px;
-            margin-top: 30px;
-        }
-        
-        .value-item {
-            display: flex;
-            align-items: flex-start;
-            gap: 20px;
-        }
-        
-        .value-icon {
-            width: 50px;
-            height: 50px;
-            background: var(--bg-secondary);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--primary);
-            font-size: 1.2rem;
-            flex-shrink: 0;
-        }
-        
-        .value-content h4 {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: var(--text-primary);
-        }
-        
-        .value-content p {
-            color: var(--text-secondary);
-            line-height: 1.6;
-            font-size: 0.95rem;
-        }
-        
-        .team-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 30px;
-            margin-top: 40px;
-        }
-        
-        .team-member {
-            text-align: center;
-        }
-        
-        .member-avatar {
-            width: 120px;
-            height: 120px;
-            background: linear-gradient(135deg, var(--primary), var(--secondary));
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 20px;
-            color: white;
-            font-size: 2.5rem;
-        }
-        
-        .member-name {
-            font-size: 1.2rem;
-            font-weight: 600;
-            margin-bottom: 5px;
-            color: var(--text-primary);
-        }
-        
-        .member-role {
-            color: var(--text-secondary);
-            font-size: 0.95rem;
-            margin-bottom: 15px;
-        }
-        
-        .member-bio {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-            line-height: 1.6;
-        }
-        
-        .cta-section {
-            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-            border-radius: 20px;
-            padding: 60px;
-            text-align: center;
-            color: white;
-            margin-top: 60px;
-        }
-        
-        .cta-title {
-            font-size: 2rem;
-            font-weight: 700;
-            margin-bottom: 20px;
-        }
-        
-        .cta-buttons {
-            display: flex;
-            gap: 20px;
-            justify-content: center;
-            margin-top: 30px;
-            flex-wrap: wrap;
-        }
-        
-        .cta-btn {
-            padding: 15px 30px;
             background: white;
-            color: var(--primary);
-            border: none;
+            padding: 30px;
             border-radius: 10px;
-            font-weight: 600;
-            text-decoration: none;
-            transition: all 0.3s ease;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
-        
-        .cta-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        h1 {
+            color: #3b82f6;
+            border-bottom: 3px solid #3b82f6;
+            padding-bottom: 10px;
         }
-        
-        .cta-btn.secondary {
-            background: transparent;
-            border: 2px solid white;
-            color: white;
-        }
-        
-        .back-home {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            margin-top: 40px;
-            padding: 12px 25px;
-            background: var(--primary);
-            color: white;
+        .creator-info {
+            background: #f0f9ff;
+            padding: 20px;
             border-radius: 8px;
-            text-decoration: none;
-            font-weight: 500;
-            transition: all 0.3s ease;
+            margin: 20px 0;
+            border-left: 4px solid #3b82f6;
         }
-        
-        .back-home:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(67, 97, 238, 0.2);
-        }
-        
-        @media (max-width: 768px) {
-            .hero-section {
-                padding: 40px 20px;
-            }
-            
-            .mission-statement {
-                font-size: 1.3rem;
-            }
-            
-            .cta-section {
-                padding: 40px 20px;
-            }
-            
-            .cta-buttons {
-                flex-direction: column;
-                align-items: center;
-            }
-            
-            .cta-btn {
-                width: 100%;
-                max-width: 300px;
-            }
+        .contact {
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
         }
     </style>
 </head>
 <body>
-    <!-- Header -->
-    <header class="navbar">
-        <div class="container navbar-container">
-            <a href="/" class="logo">
-                <div class="logo-icon">
-                    <i class="fas fa-flag"></i>
-                </div>
-                <span>{{ config.SITE_NAME }}</span>
-            </a>
-
-            <nav class="nav-menu">
-                <a href="/" class="nav-link">
-                    <i class="fas fa-home"></i>
-                    <span>Home</span>
-                </a>
-                <a href="/#news" class="nav-link">
-                    <i class="fas fa-newspaper"></i>
-                    <span>News</span>
-                </a>
-                <a href="/#business" class="nav-link">
-                    <i class="fas fa-chart-line"></i>
-                    <span>Business</span>
-                </a>
-                <a href="/#jobs" class="nav-link">
-                    <i class="fas fa-briefcase"></i>
-                    <span>Jobs</span>
-                </a>
-            </nav>
-
-            <button class="btn btn-icon theme-toggle">
-                <i class="fas fa-moon"></i>
-            </button>
-            
-            <button class="menu-toggle">
-                <span></span>
-                <span></span>
-                <span></span>
-            </button>
+    <div class="container">
+        <h1>About {{ config.SITE_NAME }}</h1>
+        
+        <p><strong>{{ config.SITE_NAME }}</strong> is a South African news aggregation platform created by Nompumelello Sibiya to provide centralized access to news, jobs, grants, and opportunities for all South Africans.</p>
+        
+        <div class="creator-info">
+            <h2>👨‍💻 Creator & Developer</h2>
+            <p><strong>Name:</strong> Nompumelello Sibiya</p>
+            <p><strong>Role:</strong> Founder, Developer & Content Curator</p>
+            <p><strong>Mission:</strong> To create a sustainable platform that provides valuable information to South Africans while maintaining high standards of accuracy and reliability.</p>
         </div>
-    </header>
-
-    <!-- About Content -->
-    <main class="about-container">
-        <div class="about-header">
-            <h1 class="about-title">About {{ config.SITE_NAME }}</h1>
-            <p class="about-subtitle">Your trusted source for comprehensive South African news and information.</p>
+        
+        <h2>📊 What We Do</h2>
+        <ul>
+            <li>Aggregate news from trusted South African sources</li>
+            <li>Create original guides and analysis</li>
+            <li>Provide job opportunities and grant information</li>
+            <li>Offer business and technology updates</li>
+            <li>Deliver content in an accessible, user-friendly format</li>
+        </ul>
+        
+        <h2>🔧 How It Works</h2>
+        <p>The platform uses automated systems to:</p>
+        <ol>
+            <li>Fetch news from RSS feeds every 30 minutes</li>
+            <li>Clean and categorize content</li>
+            <li>Generate original articles</li>
+            <li>Provide a responsive experience on all devices</li>
+        </ol>
+        
+        <div class="contact">
+            <h2>📞 Contact</h2>
+            <p><strong>Email:</strong> {{ config.CONTACT_EMAIL }}</p>
+            <p><strong>Phone:</strong> {{ config.CONTACT_PHONE }}</p>
+            <p><strong>Location:</strong> {{ config.PHYSICAL_ADDRESS }}</p>
         </div>
-
-        <!-- Hero Section -->
-        <section class="hero-section">
-            <div class="hero-content">
-                <span class="sa-flag">🇿🇦</span>
-                <h2 class="mission-statement">Bringing South Africa to You: News, Business, Jobs, and More in One Place</h2>
-                <p style="color: var(--text-secondary); font-size: 1.1rem; max-width: 700px; margin: 0 auto;">
-                    {{ config.SITE_NAME }} is dedicated to providing South Africans with reliable, up-to-date information from across the nation. We aggregate news from trusted sources to keep you informed about what matters most.
-                </p>
-            </div>
-        </section>
-
-        <!-- Our Story -->
-        <section class="section">
-            <h2 class="section-title">Our Story</h2>
-            <div class="section-content">
-                <p>Founded with a vision to simplify access to South African news, {{ config.SITE_NAME }} was born out of a need for a centralized platform where citizens could find comprehensive information about their country.</p>
-                
-                <p>In today's fast-paced digital world, staying informed can be overwhelming. With numerous news sources and platforms, it's challenging to get a complete picture of what's happening in South Africa. That's where we come in.</p>
-                
-                <p>We started as a small project aimed at helping South Africans stay connected with their communities, economy, and opportunities. Today, we've grown into a comprehensive platform serving thousands of users daily.</p>
-            </div>
-        </section>
-
-        <!-- What We Do -->
-        <section class="section">
-            <h2 class="section-title">What We Do</h2>
-            <div class="section-content">
-                <p>{{ config.SITE_NAME }} is a news aggregation platform that brings together information from various trusted South African sources. Our mission is to make it easy for you to stay informed about:</p>
-            </div>
-            
-            <div class="features-grid">
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-newspaper"></i>
-                    </div>
-                    <h3 class="feature-title">Latest News</h3>
-                    <p class="feature-desc">Stay updated with breaking news and current events from across South Africa.</p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-chart-line"></i>
-                    </div>
-                    <h3 class="feature-title">Business Updates</h3>
-                    <p class="feature-desc">Track economic developments, market trends, and business opportunities.</p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-briefcase"></i>
-                    </div>
-                    <h3 class="feature-title">Job Opportunities</h3>
-                    <p class="feature-desc">Find employment opportunities and career advice from various sectors.</p>
-                </div>
-                
-                <div class="feature-card">
-                    <div class="feature-icon">
-                        <i class="fas fa-hand-holding-usd"></i>
-                    </div>
-                    <h3 class="feature-title">Grants & Funding</h3>
-                    <p class="feature-desc">Access information about government grants and funding opportunities.</p>
-                </div>
-            </div>
-        </section>
-
-        <!-- Our Impact -->
-        <section class="section">
-            <h2 class="section-title">Our Impact</h2>
-            <div class="section-content">
-                <p>Since our launch, we've made significant strides in connecting South Africans with vital information:</p>
-            </div>
-            
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-number">{{ stats.total_posts }}+</div>
-                    <div class="stat-label">Articles Published</div>
-                </div>
-                
-                <div class="stat-card">
-                    <div class="stat-number">{{ stats.active_sources }}+</div>
-                    <div class="stat-label">Trusted Sources</div>
-                </div>
-                
-                <div class="stat-card">
-                    <div class="stat-number">{{ stats.total_views }}+</div>
-                    <div class="stat-label">Total Views</div>
-                </div>
-                
-                <div class="stat-card">
-                    <div class="stat-number">24/7</div>
-                    <div class="stat-label">News Updates</div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Our Values -->
-        <section class="section">
-            <h2 class="section-title">Our Values</h2>
-            <div class="section-content">
-                <p>At {{ config.SITE_NAME }}, we're guided by core principles that shape everything we do:</p>
-            </div>
-            
-            <div class="values-list">
-                <div class="value-item">
-                    <div class="value-icon">
-                        <i class="fas fa-check-circle"></i>
-                    </div>
-                    <div class="value-content">
-                        <h4>Accuracy & Reliability</h4>
-                        <p>We prioritize information from verified sources and strive for accuracy in everything we share.</p>
-                    </div>
-                </div>
-                
-                <div class="value-item">
-                    <div class="value-icon">
-                        <i class="fas fa-balance-scale"></i>
-                    </div>
-                    <div class="value-content">
-                        <h4>Transparency</h4>
-                        <p>We clearly attribute all content to its original sources and are transparent about our aggregation methods.</p>
-                    </div>
-                </div>
-                
-                <div class="value-item">
-                    <div class="value-icon">
-                        <i class="fas fa-users"></i>
-                    </div>
-                    <div class="value-content">
-                        <h4>Accessibility</h4>
-                        <p>We believe information should be accessible to all South Africans, regardless of location or background.</p>
-                    </div>
-                </div>
-                
-                <div class="value-item">
-                    <div class="value-icon">
-                        <i class="fas fa-heart"></i>
-                    </div>
-                    <div class="value-content">
-                        <h4>Patriotism</h4>
-                        <p>We're proud to be South African and committed to serving our fellow citizens with relevant, local information.</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- How It Works -->
-        <section class="section">
-            <h2 class="section-title">How It Works</h2>
-            <div class="section-content">
-                <p>Our platform operates through a sophisticated yet simple process:</p>
-                
-                <div style="background: var(--bg-secondary); padding: 25px; border-radius: 12px; margin: 25px 0;">
-                    <h4 style="color: var(--text-primary); margin-bottom: 15px; font-size: 1.1rem;">Our Process:</h4>
-                    <ol style="color: var(--text-secondary); padding-left: 20px; line-height: 1.8;">
-                        <li><strong>Source Aggregation:</strong> We collect news from verified South African sources</li>
-                        <li><strong>Content Curation:</strong> Articles are organized into relevant categories</li>
-                        <li><strong>Quality Filtering:</strong> We ensure only relevant, high-quality content is displayed</li>
-                        <li><strong>Real-time Updates:</strong> Content is updated continuously throughout the day</li>
-                        <li><strong>User Delivery:</strong> Information is presented in an easy-to-navigate format</li>
-                    </ol>
-                </div>
-                
-                <p>We use automated systems combined with quality checks to ensure you receive the most relevant and up-to-date information.</p>
-            </div>
-        </section>
-
-        <!-- Meet the Team -->
-        <section class="section">
-            <h2 class="section-title">Our Commitment</h2>
-            <div class="section-content">
-                <p>While {{ config.SITE_NAME }} is primarily powered by automated systems and algorithms, we have a dedicated team committed to:</p>
-                
-                <div class="team-grid">
-                    <div class="team-member">
-                        <div class="member-avatar">
-                            <i class="fas fa-cogs"></i>
-                        </div>
-                        <h3 class="member-name">Technology Team</h3>
-                        <p class="member-role">System Development & Maintenance</p>
-                        <p class="member-bio">Ensuring our platform runs smoothly and efficiently 24/7.</p>
-                    </div>
-                    
-                    <div class="team-member">
-                        <div class="member-avatar">
-                            <i class="fas fa-shield-alt"></i>
-                        </div>
-                        <h3 class="member-name">Quality Team</h3>
-                        <p class="member-role">Content Monitoring & Standards</p>
-                        <p class="member-bio">Maintaining the quality and reliability of information presented.</p>
-                    </div>
-                    
-                    <div class="team-member">
-                        <div class="member-avatar">
-                            <i class="fas fa-headset"></i>
-                        </div>
-                        <h3 class="member-name">Support Team</h3>
-                        <p class="member-role">User Assistance & Feedback</p>
-                        <p class="member-bio">Helping users and incorporating their feedback for improvements.</p>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Call to Action -->
-        <section class="cta-section">
-            <h2 class="cta-title">Join Thousands of Informed South Africans</h2>
-            <p style="font-size: 1.1rem; opacity: 0.9; max-width: 700px; margin: 0 auto;">
-                Stay connected with what matters most in South Africa. Whether you're looking for news, business opportunities, jobs, or grants, we've got you covered.
-            </p>
-            
-            <div class="cta-buttons">
-                <a href="/" class="cta-btn">
-                    <i class="fas fa-home"></i>
-                    Explore Home Page
-                </a>
-                <a href="/contact" class="cta-btn secondary">
-                    <i class="fas fa-envelope"></i>
-                    Contact Us
-                </a>
-            </div>
-        </section>
-
-        <div style="text-align: center; margin-top: 40px;">
-            <a href="/" class="back-home">
-                <i class="fas fa-arrow-left"></i>
-                Back to Home
+        
+        <p style="text-align: center; margin-top: 30px; padding: 15px; background: #f0f9ff; border-radius: 8px;">
+            <strong>🇿🇦 Proudly South African • Built with passion for our community 🇿🇦</strong>
+        </p>
+        
+        <div style="text-align: center; margin-top: 20px;">
+            <a href="/" style="display: inline-block; padding: 10px 20px; background: #3b82f6; color: white; text-decoration: none; border-radius: 5px;">
+                ← Back to Home
             </a>
         </div>
-    </main>
-
-    <!-- Footer -->
-    <footer class="footer">
-        <div class="container">
-            <div class="footer-grid">
-                <div class="footer-col">
-                    <div class="logo" style="margin-bottom: 20px;">
-                        <div class="logo-icon">
-                            <i class="fas fa-flag"></i>
-                        </div>
-                        <span>{{ config.SITE_NAME }}</span>
-                    </div>
-                    <p style="color: #a0aec0; margin-bottom: 20px; line-height: 1.6;">
-                        Your trusted source for South African news and information.
-                    </p>
-                </div>
-
-                <div class="footer-col">
-                    <h3>Legal</h3>
-                    <ul class="footer-links">
-                        <li><a href="/privacy"><i class="fas fa-chevron-right"></i> Privacy Policy</a></li>
-                        <li><a href="/terms"><i class="fas fa-chevron-right"></i> Terms of Service</a></li>
-                        <li><a href="/disclaimer"><i class="fas fa-chevron-right"></i> Disclaimer</a></li>
-                        <li><a href="/contact"><i class="fas fa-chevron-right"></i> Contact Us</a></li>
-                    </ul>
-                </div>
-
-                <div class="footer-col">
-                    <h3>Contact</h3>
-                    <div style="color: #a0aec0; line-height: 1.8;">
-                        <p><i class="fas fa-envelope"></i> {{ config.CONTACT_EMAIL }}</p>
-                        <p><i class="fas fa-phone"></i> {{ config.CONTACT_PHONE }}</p>
-                        <p><i class="fas fa-map-marker-alt"></i> {{ config.PHYSICAL_ADDRESS }}</p>
-                    </div>
-                </div>
-            </div>
-
-            <div class="footer-bottom">
-                <p>&copy; {{ now.year }} {{ config.SITE_NAME }}. Proudly South African. All rights reserved.</p>
-            </div>
-        </div>
-    </footer>
-
-    <!-- JavaScript -->
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    </div>
 </body>
 </html>
