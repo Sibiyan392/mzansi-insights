@@ -7,6 +7,24 @@
 <meta name="description" content="{{ config.SITE_DESCRIPTION }}" />
 <meta name="keywords" content="South African news, SA news, jobs, grants, SASSA, business, entertainment, technology, sports" />
 
+<!-- Google Analytics -->
+{% if config.ENABLE_ANALYTICS and config.GOOGLE_ANALYTICS_ID %}
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id={{ config.GOOGLE_ANALYTICS_ID }}"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', '{{ config.GOOGLE_ANALYTICS_ID }}');
+</script>
+{% endif %}
+
+<!-- AdSense -->
+{% if config.ENABLE_ADS and config.ADSENSE_CLIENT %}
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={{ config.ADSENSE_CLIENT }}"
+     crossorigin="anonymous"></script>
+{% endif %}
+
 <!-- Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -288,6 +306,42 @@
   .search-btn:hover {
     transform: translateY(-50%) scale(1.05);
     box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  }
+
+  /* ============= ADS SECTION ============= */
+  .ad-container {
+    margin: 20px auto;
+    text-align: center;
+    overflow: hidden;
+  }
+
+  .ad-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .ad-box {
+    background: #fff;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 15px;
+    margin: 10px 0;
+  }
+
+  .ad-box-responsive {
+    width: 100%;
+    height: auto;
+    min-height: 90px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f9fafb;
+    color: var(--text-muted);
+    border-radius: 8px;
+    font-size: 0.9rem;
   }
 
   /* ============= LIVE TICKER ============= */
@@ -1357,6 +1411,29 @@
   </div>
 </section>
 
+<!-- Ad Section 1 -->
+{% if config.ENABLE_ADS %}
+<section class="news-section">
+  <div class="container">
+    <div class="ad-container">
+      <div class="ad-label">Advertisement</div>
+      <div class="ad-box">
+        <!-- AdSense Responsive Ad -->
+        <ins class="adsbygoogle"
+             style="display:block"
+             data-ad-client="{{ config.ADSENSE_CLIENT }}"
+             data-ad-slot="{{ config.ADSENSE_SLOT_HOME }}"
+             data-ad-format="auto"
+             data-full-width-responsive="true"></ins>
+        <script>
+             (adsbygoogle = window.adsbygoogle || []).push({});
+        </script>
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+
 <!-- Latest News -->
 <section class="news-section">
   <div class="container">
@@ -1428,6 +1505,29 @@
         </div>
       </a>
       {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
+
+<!-- Ad Section 2 -->
+{% if config.ENABLE_ADS %}
+<section class="news-section">
+  <div class="container">
+    <div class="ad-container">
+      <div class="ad-label">Advertisement</div>
+      <div class="ad-box">
+        <!-- AdSense In-Article Ad -->
+        <ins class="adsbygoogle"
+             style="display:block; text-align:center;"
+             data-ad-layout="in-article"
+             data-ad-format="fluid"
+             data-ad-client="{{ config.ADSENSE_CLIENT }}"
+             data-ad-slot="{{ config.ADSENSE_SLOT_ARTICLE }}"></ins>
+        <script>
+             (adsbygoogle = window.adsbygoogle || []).push({});
+        </script>
+      </div>
     </div>
   </div>
 </section>
@@ -1547,6 +1647,11 @@
       <p style="font-size:0.8rem; margin-top:10px; opacity:0.7;">
         Content sourced from verified and trusted South African publications
       </p>
+      {% if config.ENABLE_ADS %}
+      <p style="font-size:0.7rem; margin-top:10px; opacity:0.5;">
+        Advertisements are served by Google AdSense
+      </p>
+      {% endif %}
     </div>
   </div>
 </footer>
@@ -1945,6 +2050,23 @@
     // You could implement a simple fetch to a serverless function here
     // Example: send to a Telegram bot, Discord webhook, or simple API
   }
+
+  // Track ad clicks for monetization
+  document.addEventListener('click', function(e) {
+    // Check if click is on an ad element
+    if (e.target.closest('.adsbygoogle') || e.target.closest('.ad-box')) {
+      // Send analytics event
+      if (typeof gtag !== 'undefined') {
+        gtag('event', 'ad_click', {
+          'event_category': 'monetization',
+          'event_label': 'ad_click'
+        });
+      }
+      
+      // You could also send to your own analytics here
+      console.log('Ad clicked');
+    }
+  });
 </script>
 
 <!-- Alternative Email Sending - Simple HTTP POST option -->

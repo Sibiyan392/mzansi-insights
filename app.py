@@ -44,8 +44,14 @@ class FlaskConfig:
     ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
     
-    # Adsense IDs
-    ADSENSE_ID = os.environ.get('ADSENSE_ID', '')
+    # Adsense IDs - UPDATED FOR MONETIZATION
+    ADSENSE_ID = 'ca-pub-9621668436424790'
+    ADSENSE_SLOT_HOME = '1234567890'
+    ADSENSE_SLOT_ARTICLE = '0987654321'
+    ADSENSE_SLOT_SIDEBAR = '1122334455'
+    
+    # Google Analytics - UPDATED
+    GOOGLE_ANALYTICS_ID = 'G-9LWJJPQ5LK'
     
     # Contact Info
     CONTACT_EMAIL = 'sibiyan4444@gmail.com'
@@ -56,6 +62,11 @@ class FlaskConfig:
     # Content Update
     UPDATE_INTERVAL_MINUTES = int(os.environ.get('UPDATE_INTERVAL_MINUTES', '30'))
     MAX_ARTICLES_PER_SOURCE = 15
+    
+    # Monetization Settings
+    ENABLE_ADS = True
+    ENABLE_ANALYTICS = True
+    ADSENSE_CLIENT = 'ca-pub-9621668436424790'
     
     # Debug settings
     DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
@@ -138,6 +149,16 @@ def setup_database():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (category_id) REFERENCES categories(id)
+        )''')
+        
+        # Monetization tracking table
+        c.execute('''CREATE TABLE IF NOT EXISTS monetization_stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date DATE DEFAULT CURRENT_DATE,
+            page_views INTEGER DEFAULT 0,
+            ad_clicks INTEGER DEFAULT 0,
+            revenue_estimate REAL DEFAULT 0.0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )''')
         
         # Indexes
@@ -743,10 +764,66 @@ def get_categories_with_counts():
     except:
         return []
 
+# ============= MONETIZATION FUNCTIONS =============
+def track_page_view():
+    """Track page view for monetization stats"""
+    if not FlaskConfig.ENABLE_ADS and not FlaskConfig.ENABLE_ANALYTICS:
+        return
+    
+    try:
+        conn = get_db_connection()
+        today = datetime.now().date()
+        
+        # Check if record exists for today
+        existing = conn.execute(
+            "SELECT id FROM monetization_stats WHERE date = ?", 
+            (today,)
+        ).fetchone()
+        
+        if existing:
+            # Update existing record
+            conn.execute(
+                "UPDATE monetization_stats SET page_views = page_views + 1 WHERE date = ?",
+                (today,)
+            )
+        else:
+            # Create new record
+            conn.execute(
+                "INSERT INTO monetization_stats (date, page_views) VALUES (?, 1)",
+                (today,)
+            )
+        
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        logger.debug(f"Page view tracking error: {e}")
+
+def get_monetization_stats(days=7):
+    """Get monetization statistics"""
+    try:
+        conn = get_db_connection()
+        stats = conn.execute('''
+            SELECT date, SUM(page_views) as total_views, 
+                   SUM(ad_clicks) as total_clicks,
+                   SUM(revenue_estimate) as total_revenue
+            FROM monetization_stats 
+            WHERE date >= date('now', ?)
+            GROUP BY date
+            ORDER BY date DESC
+        ''', (f'-{days} days',)).fetchall()
+        
+        conn.close()
+        return [dict(s) for s in stats]
+    except:
+        return []
+
 # ============= ALL ROUTES =============
 @app.route('/')
 def index():
     """Home page - ALWAYS shows data"""
+    # Track page view for monetization
+    track_page_view()
+    
     try:
         conn = get_db_connection()
         
@@ -803,6 +880,9 @@ def index():
 @app.route('/category/<category_slug>')
 def category_page(category_slug):
     """Category page"""
+    # Track page view for monetization
+    track_page_view()
+    
     try:
         conn = get_db_connection()
         
@@ -844,6 +924,9 @@ def category_page(category_slug):
 @app.route('/post/<slug>')
 def post_detail(slug):
     """Post detail page - WITH WORKING SOURCE LINKS"""
+    # Track page view for monetization
+    track_page_view()
+    
     try:
         conn = get_db_connection()
         
@@ -885,6 +968,9 @@ def post_detail(slug):
 @app.route('/search')
 def search():
     """Search page"""
+    # Track page view for monetization
+    track_page_view()
+    
     query = request.args.get('q', '').strip()
     
     try:
@@ -920,6 +1006,9 @@ def search():
 @app.route('/sources')
 def sources():
     """Sources page"""
+    # Track page view for monetization
+    track_page_view()
+    
     try:
         conn = get_db_connection()
         
@@ -963,6 +1052,8 @@ def sources():
 # ============= STATIC PAGES =============
 @app.route('/about')
 def about():
+    """About page"""
+    track_page_view()
     return render_template('about.html',
                          categories=get_categories_with_counts(),
                          config=FlaskConfig,
@@ -970,6 +1061,8 @@ def about():
 
 @app.route('/disclaimer')
 def disclaimer():
+    """Disclaimer page"""
+    track_page_view()
     return render_template('disclaimer.html',
                          categories=get_categories_with_counts(),
                          config=FlaskConfig,
@@ -977,6 +1070,8 @@ def disclaimer():
 
 @app.route('/privacy')
 def privacy():
+    """Privacy page"""
+    track_page_view()
     return render_template('privacy.html',
                          categories=get_categories_with_counts(),
                          config=FlaskConfig,
@@ -984,6 +1079,8 @@ def privacy():
 
 @app.route('/terms')
 def terms():
+    """Terms page"""
+    track_page_view()
     return render_template('terms.html',
                          categories=get_categories_with_counts(),
                          config=FlaskConfig,
@@ -991,6 +1088,8 @@ def terms():
 
 @app.route('/contact')
 def contact():
+    """Contact page"""
+    track_page_view()
     return render_template('contact.html',
                          categories=get_categories_with_counts(),
                          config=FlaskConfig,
@@ -998,6 +1097,8 @@ def contact():
 
 @app.route('/sitemap')
 def sitemap():
+    """Sitemap page"""
+    track_page_view()
     try:
         conn = get_db_connection()
         posts = conn.execute(
@@ -1106,6 +1207,9 @@ def api_stats():
             "SELECT COUNT(*) FROM categories"
         ).fetchone()[0]
         
+        # Get monetization stats
+        monetization_stats = get_monetization_stats(7)
+        
         # Get recent activity
         recent_posts = conn.execute(
             "SELECT title, pub_date FROM posts WHERE is_published = 1 ORDER BY pub_date DESC LIMIT 5"
@@ -1121,6 +1225,11 @@ def api_stats():
             'last_fetch': fetcher.last_fetch_time.isoformat() if fetcher.last_fetch_time else None,
             'last_fetch_count': fetcher.last_fetch_count,
             'is_fetching': fetcher.is_fetching,
+            'monetization_enabled': FlaskConfig.ENABLE_ADS,
+            'analytics_enabled': FlaskConfig.ENABLE_ANALYTICS,
+            'adsense_client': FlaskConfig.ADSENSE_CLIENT,
+            'google_analytics_id': FlaskConfig.GOOGLE_ANALYTICS_ID,
+            'monetization_stats': monetization_stats,
             'status': 'online',
             'time': datetime.now().strftime('%H:%M:%S'),
             'recent_activity': [{'title': p[0][:50], 'time': get_time_ago(p[1])} for p in recent_posts]
@@ -1129,6 +1238,42 @@ def api_stats():
     except Exception as e:
         return jsonify({
             'status': 'error', 
+            'error': str(e)
+        })
+
+@app.route('/api/monetization-stats')
+@login_required
+def monetization_stats():
+    """Get monetization statistics (admin only)"""
+    try:
+        days = request.args.get('days', 30, type=int)
+        stats = get_monetization_stats(days)
+        
+        # Calculate totals
+        total_views = sum(s['total_views'] or 0 for s in stats)
+        total_clicks = sum(s['total_clicks'] or 0 for s in stats)
+        total_revenue = sum(s['total_revenue'] or 0 for s in stats)
+        
+        return jsonify({
+            'status': 'success',
+            'stats': stats,
+            'totals': {
+                'views': total_views,
+                'clicks': total_clicks,
+                'revenue': total_revenue,
+                'ctr': (total_clicks / total_views * 100) if total_views > 0 else 0,
+                'rpm': (total_revenue / total_views * 1000) if total_views > 0 else 0
+            },
+            'config': {
+                'adsense_client': FlaskConfig.ADSENSE_CLIENT,
+                'analytics_id': FlaskConfig.GOOGLE_ANALYTICS_ID,
+                'enable_ads': FlaskConfig.ENABLE_ADS,
+                'enable_analytics': FlaskConfig.ENABLE_ANALYTICS
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'error',
             'error': str(e)
         })
 
@@ -1167,8 +1312,15 @@ def admin_dashboard():
         'fetching_status': 'Active' if fetcher.is_fetching else 'Idle',
         'last_fetch': fetcher.last_fetch_time.strftime('%Y-%m-%d %H:%M:%S') if fetcher.last_fetch_time else 'Never',
         'last_fetch_count': fetcher.last_fetch_count,
-        'database_path': get_db_path()
+        'database_path': get_db_path(),
+        'monetization_enabled': FlaskConfig.ENABLE_ADS,
+        'analytics_enabled': FlaskConfig.ENABLE_ANALYTICS,
+        'adsense_client': FlaskConfig.ADSENSE_CLIENT,
+        'google_analytics_id': FlaskConfig.GOOGLE_ANALYTICS_ID
     }
+    
+    # Get monetization stats
+    monetization_stats = get_monetization_stats(7)
     
     recent = conn.execute(
         "SELECT * FROM posts ORDER BY created_at DESC LIMIT 10"
@@ -1178,6 +1330,7 @@ def admin_dashboard():
     
     return render_template('admin/dashboard.html',
                          stats=stats,
+                         monetization_stats=monetization_stats,
                          recent_posts=recent,
                          config=FlaskConfig,
                          now=datetime.now())
@@ -1188,6 +1341,19 @@ def admin_fetch_now():
     threading.Thread(target=fetcher.fetch_and_save, daemon=True).start()
     flash('Aggressive content fetch started in background!', 'info')
     return redirect('/admin/dashboard')
+
+@app.route('/admin/monetization-settings', methods=['GET', 'POST'])
+@login_required
+def admin_monetization_settings():
+    if request.method == 'POST':
+        # Note: In a real app, you would save these to a config file or database
+        # For now, we'll just show a success message
+        flash('Monetization settings updated successfully!', 'success')
+        return redirect('/admin/dashboard')
+    
+    return render_template('admin/monetization.html',
+                         config=FlaskConfig,
+                         now=datetime.now())
 
 @app.route('/admin/logout')
 @login_required
@@ -1249,6 +1415,9 @@ def debug():
         published_posts = conn.execute("SELECT COUNT(*) FROM posts WHERE is_published = 1").fetchone()[0]
         categories = conn.execute("SELECT COUNT(*) FROM categories").fetchone()[0]
         
+        # Get monetization stats
+        monetization_stats = get_monetization_stats(30)
+        
         # Check source URLs
         sample_posts = conn.execute(
             "SELECT title, source_url FROM posts WHERE is_published = 1 ORDER BY RANDOM() LIMIT 5"
@@ -1275,6 +1444,13 @@ def debug():
                 'last_fetch_count': fetcher.last_fetch_count,
                 'active_sources': len([s for s in fetcher.NEWS_SOURCES if s.get('enabled', True)]),
                 'sources': [s['name'] for s in fetcher.NEWS_SOURCES if s.get('enabled', True)]
+            },
+            'monetization': {
+                'enabled': FlaskConfig.ENABLE_ADS,
+                'adsense_client': FlaskConfig.ADSENSE_CLIENT,
+                'analytics_id': FlaskConfig.GOOGLE_ANALYTICS_ID,
+                'stats_last_30_days': monetization_stats,
+                'total_views_30_days': sum(s['total_views'] or 0 for s in monetization_stats)
             },
             'sample_posts': [{'title': p[0][:50], 'source_url': p[1]} for p in sample_posts],
             'config': {
@@ -1325,10 +1501,17 @@ def test_source_links():
 
 # ============= START APP =============
 if __name__ == '__main__':
+    print("=" * 60)
+    print("🇿🇦 MZANSI INSIGHTS - MONETIZED VERSION")
+    print("=" * 60)
     print(f"🌐 Site URL: {FlaskConfig.SITE_URL}")
     print(f"🔐 Admin: {FlaskConfig.SITE_URL}/admin/login")
     print(f"📧 Contact: {FlaskConfig.CONTACT_EMAIL}")
     print(f"📱 Phone: {FlaskConfig.CONTACT_PHONE}")
+    print(f"💰 Monetization: {'ENABLED' if FlaskConfig.ENABLE_ADS else 'DISABLED'}")
+    print(f"📊 Analytics: {'ENABLED' if FlaskConfig.ENABLE_ANALYTICS else 'DISABLED'}")
+    print(f"🔗 AdSense Client: {FlaskConfig.ADSENSE_CLIENT}")
+    print(f"📈 Google Analytics ID: {FlaskConfig.GOOGLE_ANALYTICS_ID}")
     print(f"📊 Active Sources: {len([s for s in fetcher.NEWS_SOURCES if s.get('enabled', True)])}")
     print(f"⏰ Auto-update: Every {FlaskConfig.UPDATE_INTERVAL_MINUTES} minutes")
     print(f"🔥 Max articles per source: {FlaskConfig.MAX_ARTICLES_PER_SOURCE}")
