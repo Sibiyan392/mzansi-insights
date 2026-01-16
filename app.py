@@ -16,6 +16,9 @@ import sys
 import io
 import logging
 import json
+import ssl
+from urllib.parse import urlparse, urljoin
+from urllib.request import urlopen, Request
 
 # Fix Unicode encoding for Windows console
 if sys.platform == "win32":
@@ -35,8 +38,8 @@ class FlaskConfig:
     ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
     
-    # Adsense IDs
-    ADSENSE_ID = os.environ.get('ADSENSE_ID', 'YOUR_ADSENSE_ID_HERE')
+    # Adsense IDs - REPLACE WITH YOUR ACTUAL IDs
+    ADSENSE_ID = os.environ.get('ADSENSE_ID', 'ca-pub-0000000000000000')  # Your Publisher ID
     ADSENSE_SLOT_BANNER = "1234567890"
     ADSENSE_SLOT_INARTICLE = "1234567891"
     ADSENSE_SLOT_SQUARE = "1234567892"
@@ -52,18 +55,98 @@ class FlaskConfig:
     UPDATE_INTERVAL_MINUTES = 30
     INITIAL_FETCH_COUNT = 15
     
-    # News Sources - ALL SOURCES
+    # News Sources - ALL SOURCES (with proper user agents and headers)
     NEWS_SOURCES = [
-        {'name': 'News24', 'url': 'https://www.news24.com/feed', 'category': 'news', 'enabled': True, 'color': '#4361ee', 'icon': 'newspaper'},
-        {'name': 'TimesLive', 'url': 'https://www.timeslive.co.za/feed/', 'category': 'news', 'enabled': True, 'color': '#7209b7', 'icon': 'newspaper'},
-        {'name': 'IOL', 'url': 'https://www.iol.co.za/rss', 'category': 'news', 'enabled': True, 'color': '#e63946', 'icon': 'newspaper'},
-        {'name': 'Moneyweb', 'url': 'https://www.moneyweb.co.za/feed/', 'category': 'business', 'enabled': True, 'color': '#1dd1a1', 'icon': 'chart-line'},
-        {'name': 'BusinessTech', 'url': 'https://businesstech.co.za/news/feed/', 'category': 'business', 'enabled': True, 'color': '#3742fa', 'icon': 'laptop-code'},
-        {'name': 'Daily Maverick', 'url': 'https://www.dailymaverick.co.za/feed/', 'category': 'news', 'enabled': True, 'color': '#f77f00', 'icon': 'newspaper'},
-        {'name': 'MyBroadband', 'url': 'https://mybroadband.co.za/news/feed', 'category': 'technology', 'enabled': True, 'color': '#9b59b6', 'icon': 'wifi'},
-        {'name': 'TechCentral', 'url': 'https://techcentral.co.za/feed/', 'category': 'technology', 'enabled': True, 'color': '#3498db', 'icon': 'microchip'},
-        {'name': 'Sport24', 'url': 'https://www.sport24.co.za/feed', 'category': 'sports', 'enabled': True, 'color': '#2ecc71', 'icon': 'running'},
-        {'name': 'The Citizen', 'url': 'https://www.citizen.co.za/feed/', 'category': 'news', 'enabled': True, 'color': '#d62828', 'icon': 'newspaper'},
+        {
+            'name': 'News24', 
+            'url': 'https://www.news24.com/feed', 
+            'category': 'news', 
+            'enabled': True, 
+            'color': '#4361ee', 
+            'icon': 'newspaper',
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        {
+            'name': 'TimesLive', 
+            'url': 'https://www.timeslive.co.za/feed/', 
+            'category': 'news', 
+            'enabled': True, 
+            'color': '#7209b7', 
+            'icon': 'newspaper',
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        {
+            'name': 'IOL', 
+            'url': 'https://www.iol.co.za/rss', 
+            'category': 'news', 
+            'enabled': True, 
+            'color': '#e63946', 
+            'icon': 'newspaper',
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        {
+            'name': 'Moneyweb', 
+            'url': 'https://www.moneyweb.co.za/feed/', 
+            'category': 'business', 
+            'enabled': True, 
+            'color': '#1dd1a1', 
+            'icon': 'chart-line',
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        {
+            'name': 'BusinessTech', 
+            'url': 'https://businesstech.co.za/news/feed/', 
+            'category': 'business', 
+            'enabled': True, 
+            'color': '#3742fa', 
+            'icon': 'laptop-code',
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        {
+            'name': 'Daily Maverick', 
+            'url': 'https://www.dailymaverick.co.za/feed/', 
+            'category': 'news', 
+            'enabled': True, 
+            'color': '#f77f00', 
+            'icon': 'newspaper',
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        {
+            'name': 'MyBroadband', 
+            'url': 'https://mybroadband.co.za/news/feed', 
+            'category': 'technology', 
+            'enabled': True, 
+            'color': '#9b59b6', 
+            'icon': 'wifi',
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        {
+            'name': 'TechCentral', 
+            'url': 'https://techcentral.co.za/feed/', 
+            'category': 'technology', 
+            'enabled': True, 
+            'color': '#3498db', 
+            'icon': 'microchip',
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        {
+            'name': 'Sport24', 
+            'url': 'https://www.sport24.co.za/feed', 
+            'category': 'sports', 
+            'enabled': True, 
+            'color': '#2ecc71', 
+            'icon': 'running',
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        {
+            'name': 'The Citizen', 
+            'url': 'https://www.citizen.co.za/feed/', 
+            'category': 'news', 
+            'enabled': True, 
+            'color': '#d62828', 
+            'icon': 'newspaper',
+            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
     ]
 
 # Category definitions - MATCH YOUR HTML
@@ -131,7 +214,7 @@ def setup_database():
         color TEXT
     )''')
     
-    # Posts table
+    # Posts table - Added pub_date for better sorting
     c.execute('''CREATE TABLE IF NOT EXISTS posts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
@@ -146,6 +229,7 @@ def setup_database():
         views INTEGER DEFAULT 0,
         source_name TEXT,
         is_published BOOLEAN DEFAULT 1,
+        pub_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (category_id) REFERENCES categories(id)
     )''')
@@ -154,6 +238,7 @@ def setup_database():
     c.execute('CREATE INDEX IF NOT EXISTS idx_posts_slug ON posts(slug)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_posts_category ON posts(category_id)')
     c.execute('CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_posts_pub_date ON posts(pub_date)')
     
     # Admin user
     c.execute("SELECT COUNT(*) FROM users WHERE username = 'admin'")
@@ -196,8 +281,8 @@ def setup_database():
             
             c.execute('''INSERT INTO posts 
                 (title, slug, content, excerpt, image_url, source_url, 
-                 category_id, category, source_name, views, is_published)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)''',
+                 category_id, category, source_name, views, is_published, pub_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))''',
                 (title, slug, content, excerpt, image, '#', 
                  category_id, category, source, random.randint(50, 500)))
         
@@ -236,71 +321,194 @@ class ContentFetcher:
         return slug[:100] or 'post-' + str(int(time.time()))
     
     def extract_image(self, entry):
-        if hasattr(entry, 'media_content') and entry.media_content:
-            return entry.media_content[0].get('url', '')
-        if hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
-            return entry.media_thumbnail[0].get('url', '')
-        if hasattr(entry, 'enclosures') and entry.enclosures:
-            for enc in entry.enclosures:
-                if enc.get('type', '').startswith('image/'):
-                    return enc.get('href', '')
-        return 'https://images.unsplash.com/photo-1588681664899-f142ff2dc9b1?w=800'
+        """Extract image from RSS entry with fallbacks"""
+        try:
+            # Try media_content
+            if hasattr(entry, 'media_content') and entry.media_content:
+                for media in entry.media_content:
+                    if media.get('type', '').startswith('image/'):
+                        return media.get('url', '')
+            
+            # Try media_thumbnail
+            if hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
+                for thumb in entry.media_thumbnail:
+                    return thumb.get('url', '')
+            
+            # Try enclosures
+            if hasattr(entry, 'enclosures') and entry.enclosures:
+                for enc in entry.enclosures:
+                    if enc.get('type', '').startswith('image/'):
+                        return enc.get('href', '')
+            
+            # Try to extract from content/summary
+            content = entry.get('summary', entry.get('description', ''))
+            if content:
+                # Look for img tags
+                img_match = re.search(r'<img[^>]+src="([^">]+)"', content)
+                if img_match:
+                    return img_match.group(1)
+            
+        except Exception as e:
+            logger.warning(f"Image extraction error: {e}")
+        
+        # Fallback to Unsplash images by category
+        fallback_images = {
+            'news': 'https://images.unsplash.com/photo-1588681664899-f142ff2dc9b1?w=800',
+            'business': 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=800',
+            'sports': 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800',
+            'technology': 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800',
+            'entertainment': 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800',
+            'grants': 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800',
+            'government': 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800',
+        }
+        return fallback_images.get('news', fallback_images['news'])
     
     def clean_text(self, text):
+        """Clean HTML and sanitize text"""
         if not text:
             return ""
+        # Remove HTML tags
         text = re.sub(r'<[^>]+>', '', text)
-        text = text.replace('&nbsp;', ' ').replace('&amp;', '&')
+        # Decode HTML entities
+        text = text.replace('&nbsp;', ' ').replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>').replace('&quot;', '"')
+        # Remove excessive whitespace
         text = ' '.join(text.split())
-        return text[:500]
+        # Limit length for excerpt
+        return text[:1000]  # Keep more content
+    
+    def get_category_from_title(self, title, source_category):
+        """Determine category from title and source"""
+        title_lower = title.lower()
+        
+        # Check for category keywords
+        for cat_slug, cat_data in CATEGORY_DEFINITIONS.items():
+            for keyword in cat_data['keywords']:
+                if keyword in title_lower:
+                    return cat_slug
+        
+        # Fallback to source category
+        return source_category or 'news'
+    
+    def fetch_feed(self, source):
+        """Fetch and parse a single RSS feed"""
+        try:
+            headers = {
+                'User-Agent': source.get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'),
+                'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Connection': 'keep-alive',
+            }
+            
+            # Parse with custom headers
+            feed = feedparser.parse(source['url'], request_headers=headers)
+            
+            if feed.bozo and feed.bozo_exception:
+                logger.warning(f"Feed parsing error for {source['name']}: {feed.bozo_exception}")
+            
+            return feed
+        
+        except Exception as e:
+            logger.error(f"Error fetching {source['name']}: {e}")
+            return None
     
     def fetch_and_save(self):
-        """Simple fetch that ensures we have data"""
+        """Main fetch function that saves articles"""
         try:
-            print("⚡ FETCHING DATA NOW...")
+            logger.info("⚡ Starting content fetch...")
             conn = get_db_connection()
+            c = conn.cursor()
             
-            # Quick fetch from News24 only for speed
-            feed = feedparser.parse('https://www.news24.com/feed')
+            total_saved = 0
+            source_stats = {}
             
-            saved = 0
-            if feed.entries:
-                for entry in feed.entries[:10]:  # Just 10 articles for speed
-                    title = entry.get('title', '')
-                    if not title:
+            # Fetch from all enabled sources
+            for source in FlaskConfig.NEWS_SOURCES:
+                if not source.get('enabled', True):
+                    continue
+                
+                try:
+                    logger.info(f"📡 Fetching from {source['name']}...")
+                    feed = self.fetch_feed(source)
+                    
+                    if not feed or not feed.entries:
+                        logger.warning(f"No entries from {source['name']}")
                         continue
                     
-                    # Check if already exists
-                    c = conn.cursor()
-                    c.execute("SELECT id FROM posts WHERE title = ?", (title,))
-                    if c.fetchone():
-                        continue
+                    source_saved = 0
+                    for entry in feed.entries[:10]:  # Limit to 10 per source
+                        try:
+                            title = entry.get('title', '').strip()
+                            if not title or len(title) < 10:
+                                continue
+                            
+                            # Check if article already exists (by title or link)
+                            c.execute("SELECT id FROM posts WHERE title = ? OR source_url = ?", 
+                                     (title, entry.get('link', '')))
+                            if c.fetchone():
+                                continue
+                            
+                            # Prepare content
+                            content = self.clean_text(entry.get('summary', entry.get('description', '')))
+                            if not content or len(content) < 50:
+                                continue
+                                
+                            excerpt = content[:200] + '...' if len(content) > 200 else content
+                            slug = self.generate_slug(title)
+                            image_url = self.extract_image(entry)
+                            
+                            # Determine category
+                            category_slug = self.get_category_from_title(title, source['category'])
+                            
+                            # Get category ID
+                            c.execute("SELECT id FROM categories WHERE slug = ?", (category_slug,))
+                            category_row = c.fetchone()
+                            category_id = category_row[0] if category_row else 1
+                            
+                            # Get publication date
+                            pub_date = datetime.now()
+                            if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                                try:
+                                    pub_date = datetime(*entry.published_parsed[:6])
+                                except:
+                                    pass
+                            
+                            # Insert article
+                            c.execute('''INSERT INTO posts 
+                                (title, slug, content, excerpt, image_url, source_url, 
+                                 category_id, category, source_name, views, is_published, pub_date, created_at)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, datetime('now'))''',
+                                (title, slug, content, excerpt, image_url, 
+                                 entry.get('link', '#'), category_id, category_slug, 
+                                 source['name'], random.randint(10, 100), pub_date))
+                            
+                            source_saved += 1
+                            total_saved += 1
+                            
+                            logger.debug(f"Saved: {title[:60]}...")
+                            
+                        except Exception as e:
+                            logger.error(f"Error processing article from {source['name']}: {e}")
+                            continue
                     
-                    # Prepare article
-                    content = self.clean_text(entry.get('summary', entry.get('description', '')))
-                    excerpt = content[:200] + '...' if len(content) > 200 else content
-                    slug = self.generate_slug(title)
-                    image = self.extract_image(entry)
+                    source_stats[source['name']] = source_saved
+                    logger.info(f"✅ {source['name']}: {source_saved} new articles")
                     
-                    # Insert
-                    c.execute('''INSERT INTO posts 
-                        (title, slug, content, excerpt, image_url, source_url, 
-                         category, source_name, views, is_published)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)''',
-                        (title, slug, content, excerpt, image, 
-                         entry.get('link', '#'), 'news', 'News24', 
-                         random.randint(50, 500)))
-                    
-                    saved += 1
-                    print(f"✅ Saved: {title[:50]}...")
+                except Exception as e:
+                    logger.error(f"Error with source {source['name']}: {e}")
+                    continue
             
             conn.commit()
             conn.close()
-            print(f"🎯 FETCHED {saved} NEW ARTICLES!")
-            return saved
+            
+            # Log summary
+            logger.info(f"🎯 Fetch complete: {total_saved} new articles total")
+            for source, count in source_stats.items():
+                logger.info(f"   {source}: {count} articles")
+            
+            return total_saved
             
         except Exception as e:
-            print(f"❌ Fetch error: {e}")
+            logger.error(f"❌ Fetch error: {e}", exc_info=True)
             return 0
 
 # ============= FLASK APP =============
@@ -314,20 +522,12 @@ print("=" * 60)
 # Setup database FIRST
 db_is_empty = setup_database()
 
-# Initialize fetcher and fetch immediately
+# Initialize fetcher
 fetcher = ContentFetcher()
 
-# DO IMMEDIATE FETCH - BLOCKING
-if db_is_empty:
-    print("🚀 FETCHING DATA IMMEDIATELY...")
-    fetched = fetcher.fetch_and_save()
-    print(f"✅ Initial fetch complete: {fetched} articles")
-else:
-    print("📊 Database already has data")
-    
-    # Still fetch fresh data in background
-    print("🔄 Fetching fresh data in background...")
-    threading.Thread(target=fetcher.fetch_and_save, daemon=True).start()
+# Initial fetch in background
+print("🚀 Starting initial content fetch in background...")
+threading.Thread(target=fetcher.fetch_and_save, daemon=True).start()
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -346,8 +546,15 @@ def load_user(user_id):
     return User(user['id'], user['username']) if user else None
 
 def get_time_ago(date_str):
+    """Convert date to relative time string"""
     try:
-        post_date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+        if isinstance(date_str, str):
+            post_date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+        elif isinstance(date_str, datetime):
+            post_date = date_str
+        else:
+            return "Recently"
+            
         diff = datetime.now() - post_date
         
         if diff.days > 365:
@@ -367,7 +574,12 @@ def get_time_ago(date_str):
 def prepare_post(post_row):
     """Prepare post data for template"""
     post = dict(post_row)
-    post['formatted_date'] = get_time_ago(post.get('created_at', ''))
+    
+    # Format date
+    if post.get('pub_date'):
+        post['formatted_date'] = get_time_ago(post['pub_date'])
+    else:
+        post['formatted_date'] = get_time_ago(post.get('created_at', ''))
     
     # Get category info
     conn = get_db_connection()
@@ -397,29 +609,29 @@ def prepare_post(post_row):
 # ============= ROUTES =============
 @app.route('/')
 def index():
-    """Home page - ALWAYS SHOWS DATA"""
+    """Home page"""
     try:
         conn = get_db_connection()
         
-        # Get latest posts
+        # Get latest posts (using pub_date for better sorting)
         posts_raw = conn.execute(
-            "SELECT * FROM posts WHERE is_published = 1 ORDER BY created_at DESC LIMIT 20"
+            "SELECT * FROM posts WHERE is_published = 1 ORDER BY pub_date DESC, created_at DESC LIMIT 20"
         ).fetchall()
         posts = [prepare_post(row) for row in posts_raw]
         
         # Get trending posts
         trending_raw = conn.execute(
-            "SELECT * FROM posts WHERE is_published = 1 ORDER BY views DESC LIMIT 6"
+            "SELECT * FROM posts WHERE is_published = 1 ORDER BY views DESC, pub_date DESC LIMIT 6"
         ).fetchall()
         trending_posts = [prepare_post(row) for row in trending_raw]
         
         # Get categories
         categories = []
-        cat_rows = conn.execute("SELECT * FROM categories").fetchall()
+        cat_rows = conn.execute("SELECT * FROM categories ORDER BY name").fetchall()
         for cat in cat_rows:
             cat_dict = dict(cat)
             post_count = conn.execute(
-                "SELECT COUNT(*) FROM posts WHERE category_id = ?", 
+                "SELECT COUNT(*) FROM posts WHERE category_id = ? AND is_published = 1", 
                 (cat_dict['id'],)
             ).fetchone()[0]
             cat_dict['post_count'] = post_count
@@ -429,7 +641,7 @@ def index():
         sources = []
         for source in FlaskConfig.NEWS_SOURCES:
             article_count = conn.execute(
-                "SELECT COUNT(*) FROM posts WHERE source_name = ?", 
+                "SELECT COUNT(*) FROM posts WHERE source_name = ? AND is_published = 1", 
                 (source['name'],)
             ).fetchone()[0]
             sources.append({
@@ -456,7 +668,7 @@ def index():
                              now=datetime.now())
                              
     except Exception as e:
-        print(f"❌ Home error: {e}")
+        logger.error(f"Home error: {e}")
         # Fallback with sample data
         categories = []
         for slug, cat_data in CATEGORY_DEFINITIONS.items():
@@ -490,37 +702,37 @@ def category_page(category_slug):
         ).fetchone()
         
         if not category:
-            # Create dummy category
-            cat_data = CATEGORY_DEFINITIONS.get(category_slug, CATEGORY_DEFINITIONS['news'])
-            category = {
-                'id': 0,
-                'name': cat_data['name'],
-                'slug': cat_data['slug'],
-                'description': cat_data['description'],
-                'icon': cat_data['icon'],
-                'color': cat_data['color']
-            }
+            # Check if it's a valid category
+            if category_slug in CATEGORY_DEFINITIONS:
+                cat_data = CATEGORY_DEFINITIONS[category_slug]
+                category = {
+                    'id': 0,
+                    'name': cat_data['name'],
+                    'slug': cat_data['slug'],
+                    'description': cat_data['description'],
+                    'icon': cat_data['icon'],
+                    'color': cat_data['color']
+                }
+            else:
+                return render_template('404.html', config=FlaskConfig), 404
         else:
             category = dict(category)
         
         # Get posts for this category
-        if category['id'] > 0:
-            posts_raw = conn.execute(
-                "SELECT * FROM posts WHERE category_id = ? AND is_published = 1 ORDER BY created_at DESC LIMIT 30",
-                (category['id'],)
-            ).fetchall()
-        else:
-            posts_raw = []
+        posts_raw = conn.execute(
+            "SELECT * FROM posts WHERE category_id = ? AND is_published = 1 ORDER BY pub_date DESC LIMIT 50",
+            (category['id'],)
+        ).fetchall()
         
         posts = [prepare_post(row) for row in posts_raw]
         
         # Get all categories for sidebar
         categories = []
-        cat_rows = conn.execute("SELECT * FROM categories").fetchall()
+        cat_rows = conn.execute("SELECT * FROM categories ORDER BY name").fetchall()
         for cat in cat_rows:
             cat_dict = dict(cat)
             post_count = conn.execute(
-                "SELECT COUNT(*) FROM posts WHERE category_id = ?", 
+                "SELECT COUNT(*) FROM posts WHERE category_id = ? AND is_published = 1", 
                 (cat_dict['id'],)
             ).fetchone()[0]
             cat_dict['post_count'] = post_count
@@ -536,20 +748,15 @@ def category_page(category_slug):
                              now=datetime.now())
                              
     except Exception as e:
-        print(f"Category error: {e}")
-        return render_template('category.html',
-                             category={'name': category_slug.title(), 'slug': category_slug},
-                             posts=[],
-                             categories=[],
-                             config=FlaskConfig,
-                             now=datetime.now())
+        logger.error(f"Category error: {e}")
+        return render_template('404.html', config=FlaskConfig), 404
 
 @app.route('/post/<slug>')
 def post_detail(slug):
     try:
         conn = get_db_connection()
         
-        post_raw = conn.execute("SELECT * FROM posts WHERE slug = ?", (slug,)).fetchone()
+        post_raw = conn.execute("SELECT * FROM posts WHERE slug = ? AND is_published = 1", (slug,)).fetchone()
         if not post_raw:
             conn.close()
             return render_template('404.html', config=FlaskConfig), 404
@@ -560,17 +767,32 @@ def post_detail(slug):
         conn.execute("UPDATE posts SET views = views + 1 WHERE slug = ?", (slug,))
         conn.commit()
         
-        # Get related posts
+        # Get related posts (same category, excluding current)
         related_raw = conn.execute(
-            "SELECT * FROM posts WHERE category_id = ? AND slug != ? AND is_published = 1 ORDER BY RANDOM() LIMIT 4",
+            "SELECT * FROM posts WHERE category_id = ? AND slug != ? AND is_published = 1 ORDER BY pub_date DESC LIMIT 4",
             (post['category_id'], slug)
         ).fetchall()
+        
+        # If not enough related posts, get latest posts
+        if len(related_raw) < 4:
+            additional = conn.execute(
+                "SELECT * FROM posts WHERE slug != ? AND is_published = 1 ORDER BY pub_date DESC LIMIT ?",
+                (slug, 4 - len(related_raw))
+            ).fetchall()
+            related_raw = list(related_raw) + list(additional)
+        
         related_posts = [prepare_post(row) for row in related_raw]
         
-        # Get categories
+        # Get categories for sidebar
         categories = []
-        for cat in conn.execute("SELECT * FROM categories").fetchall():
-            categories.append(dict(cat))
+        for cat in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
+            cat_dict = dict(cat)
+            post_count = conn.execute(
+                "SELECT COUNT(*) FROM posts WHERE category_id = ? AND is_published = 1", 
+                (cat_dict['id'],)
+            ).fetchone()[0]
+            cat_dict['post_count'] = post_count
+            categories.append(cat_dict)
         
         conn.close()
         
@@ -582,27 +804,27 @@ def post_detail(slug):
                              now=datetime.now())
                              
     except Exception as e:
-        print(f"Post error: {e}")
+        logger.error(f"Post error: {e}")
         return render_template('404.html', config=FlaskConfig), 404
 
 @app.route('/search')
 def search():
-    query = request.args.get('q', '')
+    query = request.args.get('q', '').strip()
     try:
         conn = get_db_connection()
         
-        if query:
+        posts = []
+        if query and len(query) >= 2:
+            search_query = f'%{query}%'
             posts_raw = conn.execute(
-                "SELECT * FROM posts WHERE (title LIKE ? OR content LIKE ?) AND is_published = 1 ORDER BY created_at DESC LIMIT 30",
-                (f'%{query}%', f'%{query}%')
+                "SELECT * FROM posts WHERE (title LIKE ? OR content LIKE ? OR excerpt LIKE ?) AND is_published = 1 ORDER BY pub_date DESC LIMIT 50",
+                (search_query, search_query, search_query)
             ).fetchall()
             posts = [prepare_post(row) for row in posts_raw]
-        else:
-            posts = []
         
-        # Get categories
+        # Get categories for sidebar
         categories = []
-        for cat in conn.execute("SELECT * FROM categories").fetchall():
+        for cat in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
             categories.append(dict(cat))
         
         conn.close()
@@ -615,7 +837,7 @@ def search():
                              now=datetime.now())
                              
     except Exception as e:
-        print(f"Search error: {e}")
+        logger.error(f"Search error: {e}")
         return render_template('search.html',
                              query=query,
                              posts=[],
@@ -632,7 +854,7 @@ def sources():
         sources_list = []
         for source in FlaskConfig.NEWS_SOURCES:
             article_count = conn.execute(
-                "SELECT COUNT(*) FROM posts WHERE source_name = ?", 
+                "SELECT COUNT(*) FROM posts WHERE source_name = ? AND is_published = 1", 
                 (source['name'],)
             ).fetchone()[0]
             sources_list.append({
@@ -641,12 +863,13 @@ def sources():
                 'category': source['category'],
                 'color': source['color'],
                 'icon': source['icon'],
-                'article_count': article_count
+                'article_count': article_count,
+                'enabled': source.get('enabled', True)
             })
         
-        # Get categories
+        # Get categories for sidebar
         categories = []
-        for cat in conn.execute("SELECT * FROM categories").fetchall():
+        for cat in conn.execute("SELECT * FROM categories ORDER BY name").fetchall():
             categories.append(dict(cat))
         
         conn.close()
@@ -658,7 +881,7 @@ def sources():
                              now=datetime.now())
                              
     except Exception as e:
-        print(f"Sources error: {e}")
+        logger.error(f"Sources error: {e}")
         return render_template('sources.html',
                              sources=FlaskConfig.NEWS_SOURCES,
                              categories=[],
@@ -670,7 +893,12 @@ def live_news():
     try:
         conn = get_db_connection()
         posts_raw = conn.execute(
-            "SELECT p.*, c.color, c.name as category_name FROM posts p LEFT JOIN categories c ON p.category_id = c.id WHERE p.is_published = 1 ORDER BY p.created_at DESC LIMIT 5"
+            """SELECT p.*, c.color, c.name as category_name 
+               FROM posts p 
+               LEFT JOIN categories c ON p.category_id = c.id 
+               WHERE p.is_published = 1 
+               ORDER BY p.pub_date DESC 
+               LIMIT 5"""
         ).fetchall()
         conn.close()
         
@@ -680,12 +908,14 @@ def live_news():
             articles.append({
                 'title': post_dict['title'][:80] + '...' if len(post_dict['title']) > 80 else post_dict['title'],
                 'category': post_dict.get('category_name', 'News'),
-                'color': post_dict.get('color', '#4361ee')
+                'color': post_dict.get('color', '#4361ee'),
+                'time_ago': get_time_ago(post_dict.get('pub_date', post_dict.get('created_at', '')))
             })
         
         return jsonify({'status': 'success', 'articles': articles})
         
     except Exception as e:
+        logger.error(f"API error: {e}")
         return jsonify({'status': 'error', 'articles': []})
 
 # Static pages
@@ -693,7 +923,7 @@ def live_news():
 def privacy():
     try:
         conn = get_db_connection()
-        categories = [dict(cat) for cat in conn.execute("SELECT * FROM categories").fetchall()]
+        categories = [dict(cat) for cat in conn.execute("SELECT * FROM categories ORDER BY name").fetchall()]
         conn.close()
     except:
         categories = []
@@ -703,7 +933,7 @@ def privacy():
 def terms():
     try:
         conn = get_db_connection()
-        categories = [dict(cat) for cat in conn.execute("SELECT * FROM categories").fetchall()]
+        categories = [dict(cat) for cat in conn.execute("SELECT * FROM categories ORDER BY name").fetchall()]
         conn.close()
     except:
         categories = []
@@ -713,7 +943,7 @@ def terms():
 def contact():
     try:
         conn = get_db_connection()
-        categories = [dict(cat) for cat in conn.execute("SELECT * FROM categories").fetchall()]
+        categories = [dict(cat) for cat in conn.execute("SELECT * FROM categories ORDER BY name").fetchall()]
         conn.close()
     except:
         categories = []
@@ -723,7 +953,7 @@ def contact():
 def about():
     try:
         conn = get_db_connection()
-        categories = [dict(cat) for cat in conn.execute("SELECT * FROM categories").fetchall()]
+        categories = [dict(cat) for cat in conn.execute("SELECT * FROM categories ORDER BY name").fetchall()]
         conn.close()
     except:
         categories = []
@@ -733,7 +963,7 @@ def about():
 def disclaimer():
     try:
         conn = get_db_connection()
-        categories = [dict(cat) for cat in conn.execute("SELECT * FROM categories").fetchall()]
+        categories = [dict(cat) for cat in conn.execute("SELECT * FROM categories ORDER BY name").fetchall()]
         conn.close()
     except:
         categories = []
@@ -743,32 +973,46 @@ def disclaimer():
 def sitemap():
     try:
         conn = get_db_connection()
-        categories = [dict(cat) for cat in conn.execute("SELECT * FROM categories").fetchall()]
+        categories = [dict(cat) for cat in conn.execute("SELECT * FROM categories ORDER BY name").fetchall()]
         conn.close()
     except:
         categories = []
     return render_template('sitemap.html', config=FlaskConfig, categories=categories, now=datetime.now())
 
-# Handle missing categories from HTML
+# Category redirects - use these until you have category-specific pages
 @app.route('/category/jobs')
 def jobs_category():
-    return redirect('/category/business')
+    try:
+        conn = get_db_connection()
+        # Check if jobs category exists and has posts
+        jobs = conn.execute(
+            "SELECT p.* FROM posts p JOIN categories c ON p.category_id = c.id WHERE c.slug = 'jobs' AND p.is_published = 1 LIMIT 1"
+        ).fetchone()
+        conn.close()
+        
+        if jobs:
+            return redirect('/category/jobs')
+        else:
+            # Show search for jobs
+            return redirect('/search?q=jobs')
+    except:
+        return redirect('/search?q=jobs')
 
 @app.route('/category/grants')
 def grants_category():
-    return redirect('/category/news')
-
-@app.route('/category/health')
-def health_category():
-    return redirect('/category/news')
-
-@app.route('/category/government')
-def government_category():
-    return redirect('/category/news')
-
-@app.route('/category/education')
-def education_category():
-    return redirect('/category/news')
+    try:
+        conn = get_db_connection()
+        grants = conn.execute(
+            "SELECT p.* FROM posts p JOIN categories c ON p.category_id = c.id WHERE c.slug = 'grants' AND p.is_published = 1 LIMIT 1"
+        ).fetchone()
+        conn.close()
+        
+        if grants:
+            return redirect('/category/grants')
+        else:
+            return redirect('/search?q=grants+sassa')
+    except:
+        return redirect('/search?q=grants')
 
 # Admin routes
 @app.route('/admin/login', methods=['GET', 'POST'])
@@ -802,13 +1046,31 @@ def admin_dashboard():
         'total_views': conn.execute("SELECT SUM(views) FROM posts").fetchone()[0] or 0,
         'categories': conn.execute("SELECT COUNT(*) FROM categories").fetchone()[0],
         'sources': len(FlaskConfig.NEWS_SOURCES),
-        'fetching_status': 'Active'
+        'fetching_status': 'Active' if fetcher.is_fetching else 'Idle',
+        'last_update': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     }
     
     recent = conn.execute("SELECT * FROM posts ORDER BY created_at DESC LIMIT 10").fetchall()
+    sources_stats = []
+    
+    for source in FlaskConfig.NEWS_SOURCES:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM posts WHERE source_name = ?", 
+            (source['name'],)
+        ).fetchone()[0]
+        sources_stats.append({
+            'name': source['name'],
+            'count': count,
+            'enabled': source.get('enabled', True)
+        })
+    
     conn.close()
     
-    return render_template('admin/dashboard.html', stats=stats, recent_posts=recent, config=FlaskConfig)
+    return render_template('admin/dashboard.html', 
+                         stats=stats, 
+                         recent_posts=recent,
+                         sources_stats=sources_stats,
+                         config=FlaskConfig)
 
 @app.route('/admin/fetch-now')
 @login_required
@@ -833,14 +1095,17 @@ def api_stats():
             'posts': conn.execute("SELECT COUNT(*) FROM posts WHERE is_published = 1").fetchone()[0],
             'total_views': conn.execute("SELECT SUM(views) FROM posts").fetchone()[0] or 0,
             'status': 'online',
-            'sources_count': len(FlaskConfig.NEWS_SOURCES),
-            'time': datetime.now().strftime('%H:%M:%S')
+            'sources_count': len([s for s in FlaskConfig.NEWS_SOURCES if s.get('enabled', True)]),
+            'last_fetch': fetcher.is_fetching,
+            'time': datetime.now().strftime('%H:%M:%S'),
+            'date': datetime.now().strftime('%Y-%m-%d')
         }
         
         conn.close()
         return jsonify(stats)
         
     except Exception as e:
+        logger.error(f"Stats API error: {e}")
         return jsonify({'error': str(e), 'status': 'error'}), 500
 
 # Debug route
@@ -854,7 +1119,18 @@ def debug():
     categories = conn.execute("SELECT COUNT(*) FROM categories").fetchone()[0]
     
     # Get latest posts
-    latest_posts = conn.execute("SELECT title, created_at, source_name FROM posts ORDER BY created_at DESC LIMIT 5").fetchall()
+    latest_posts = conn.execute(
+        "SELECT title, created_at, source_name FROM posts ORDER BY pub_date DESC LIMIT 5"
+    ).fetchall()
+    
+    # Get source stats
+    source_stats = {}
+    for source in FlaskConfig.NEWS_SOURCES:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM posts WHERE source_name = ?", 
+            (source['name'],)
+        ).fetchone()[0]
+        source_stats[source['name']] = count
     
     conn.close()
     
@@ -867,8 +1143,13 @@ def debug():
             'latest': [dict(post) for post in latest_posts]
         },
         'categories': categories,
-        'sources': len(FlaskConfig.NEWS_SOURCES),
-        'fetching': fetcher.is_fetching
+        'sources': source_stats,
+        'fetching': fetcher.is_fetching,
+        'config': {
+            'update_interval': FlaskConfig.UPDATE_INTERVAL_MINUTES,
+            'site_url': FlaskConfig.SITE_URL,
+            'adsense_id': FlaskConfig.ADSENSE_ID[:10] + '...' if FlaskConfig.ADSENSE_ID else 'Not set'
+        }
     })
 
 @app.errorhandler(404)
@@ -877,7 +1158,7 @@ def not_found(e):
 
 @app.errorhandler(500)
 def server_error(e):
-    print(f"❌ 500 error: {e}")
+    logger.error(f"500 error: {e}")
     return render_template('500.html', config=FlaskConfig), 500
 
 # Start background fetcher
@@ -886,17 +1167,28 @@ def start_background_fetcher():
     def fetch_loop():
         while True:
             try:
+                logger.info(f"⏰ Waiting {FlaskConfig.UPDATE_INTERVAL_MINUTES} minutes before next fetch...")
                 time.sleep(FlaskConfig.UPDATE_INTERVAL_MINUTES * 60)
-                print(f"\n🔄 Running scheduled fetch...")
-                fetcher.fetch_and_save()
+                
+                logger.info("🔄 Running scheduled fetch...")
+                fetcher.is_fetching = True
+                fetched = fetcher.fetch_and_save()
+                fetcher.is_fetching = False
+                
+                if fetched > 0:
+                    logger.info(f"✅ Scheduled fetch complete: {fetched} new articles")
+                else:
+                    logger.info("ℹ️ No new articles found in scheduled fetch")
+                    
             except Exception as e:
-                print(f"❌ Fetch error in loop: {e}")
+                logger.error(f"❌ Fetch error in loop: {e}")
+                fetcher.is_fetching = False
                 time.sleep(300)  # Wait 5 minutes on error
     
-    fetcher.is_fetching = True
+    fetcher.is_fetching = False
     thread = threading.Thread(target=fetch_loop, daemon=True)
     thread.start()
-    print("✅ Background fetcher started")
+    logger.info("✅ Background fetcher started")
 
 # Start the background fetcher
 start_background_fetcher()
@@ -908,6 +1200,7 @@ if __name__ == '__main__':
     print(f"📧 Contact: {FlaskConfig.CONTACT_EMAIL}")
     print(f"📱 Phone: {FlaskConfig.CONTACT_PHONE}")
     print(f"📊 Sources: {len(FlaskConfig.NEWS_SOURCES)}")
+    print(f"⏰ Updates every {FlaskConfig.UPDATE_INTERVAL_MINUTES} minutes")
     print("=" * 60)
     
     port = int(os.environ.get('PORT', 5000))
