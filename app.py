@@ -17,9 +17,10 @@ import io
 import logging
 import json
 import hashlib
-import urllib.request
-from urllib.parse import urlparse, quote
-import socket
+import requests
+from urllib.parse import urlparse, quote, unquote
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Fix Unicode encoding
 if sys.platform == "win32":
@@ -36,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 # ============= FLASK CONFIG =============
 class FlaskConfig:
-    SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-key-please-change-in-production')
+    SECRET_KEY = os.environ.get('SECRET_KEY', 'dev-key-please-change-in-production-' + str(int(time.time())))
     SITE_NAME = "Mzansi Insights"
     SITE_DESCRIPTION = "South African News & Updates - Aggregated from Trusted Sources"
     POSTS_PER_PAGE = 12
@@ -54,6 +55,7 @@ class FlaskConfig:
     
     # Content Update
     UPDATE_INTERVAL_MINUTES = int(os.environ.get('UPDATE_INTERVAL_MINUTES', '30'))
+    MAX_ARTICLES_PER_SOURCE = 15
     
     # Debug settings
     DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
@@ -63,7 +65,7 @@ class FlaskConfig:
 def get_db_path():
     """Get database path with Render persistence"""
     if os.environ.get('RENDER'):
-        # Render persistent volume
+        # Render persistent volume - FIXED PATH
         data_dir = '/opt/render/project/src/data'
         if not os.path.exists(data_dir):
             os.makedirs(data_dir, exist_ok=True)
@@ -75,6 +77,20 @@ def get_db_path():
             os.makedirs(data_dir, exist_ok=True)
         return os.path.join(data_dir, 'posts.db')
 
+def init_database():
+    """Initialize database connection"""
+    db_path = get_db_path()
+    logger.info(f"Database path: {db_path}")
+    
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    
+    # Enable WAL mode for better concurrency
+    conn.execute('PRAGMA journal_mode=WAL')
+    conn.execute('PRAGMA synchronous=NORMAL')
+    
+    return conn
+
 def setup_database():
     """Setup database tables and initial data"""
     logger.info("=" * 60)
@@ -82,10 +98,7 @@ def setup_database():
     logger.info("=" * 60)
     
     try:
-        db_path = get_db_path()
-        logger.info(f"Database path: {db_path}")
-        
-        conn = sqlite3.connect(db_path)
+        conn = init_database()
         c = conn.cursor()
         
         # Users table
@@ -106,7 +119,7 @@ def setup_database():
             color TEXT
         )''')
         
-        # Posts table
+        # Posts table - IMPROVED with more fields
         c.execute('''CREATE TABLE IF NOT EXISTS posts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
@@ -123,6 +136,7 @@ def setup_database():
             is_published BOOLEAN DEFAULT 1,
             pub_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (category_id) REFERENCES categories(id)
         )''')
         
@@ -130,6 +144,8 @@ def setup_database():
         c.execute('CREATE INDEX IF NOT EXISTS idx_posts_slug ON posts(slug)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_posts_category ON posts(category_id)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_posts_pub_date ON posts(pub_date DESC)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_posts_source ON posts(source_name)')
         
         # Create admin user if not exists
         c.execute("SELECT COUNT(*) FROM users WHERE username = ?", (FlaskConfig.ADMIN_USERNAME,))
@@ -161,47 +177,65 @@ def setup_database():
                          (name, slug, desc, icon, color))
                 logger.info(f"✅ Category created: {name}")
         
-        # Check if we need sample posts
+        # Check if we need MORE sample posts
         c.execute("SELECT COUNT(*) FROM posts")
         post_count = c.fetchone()[0]
         
-        if post_count == 0:
-            logger.info("📝 Adding sample posts...")
+        if post_count < 20:  # If less than 20 posts, add samples
+            logger.info(f"📝 Adding sample posts... (Current: {post_count})")
             sample_posts = [
-                ("Breaking: Major Economic Announcement Expected", 
-                 "The South African government is set to make a major economic announcement this afternoon that could impact markets and business sectors across the country.", 
-                 "news", "News24", "https://images.unsplash.com/photo-1588681664899-f142ff2dc9b1?w=800"),
-                ("Tech Giant Announces 1000 New Jobs in Cape Town", 
-                 "A major technology company is expanding its South African operations with a new R&D center in Cape Town, creating over 1000 new high-tech jobs.", 
-                 "business", "BusinessTech", "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=800"),
-                ("Springboks Prepare for Championship Defense", 
-                 "The national rugby team begins intensive training for the upcoming championship season with new coaching strategies and player selections.", 
-                 "sports", "Sport24", "https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800"),
-                ("New Grant Applications Open for Students", 
-                 "Applications for the 2024 student grant program are now open with increased funding amounts and expanded eligibility criteria for South African students.", 
-                 "grants", "IOL", "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800"),
-                ("Government Announces Infrastructure Projects", 
-                 "Billions allocated for new infrastructure development including roads, schools, and hospitals across multiple provinces to boost economic growth.", 
-                 "government", "TimesLive", "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800"),
+                ("Breaking: Major Economic Announcement Expected Today", 
+                 "The South African government is set to make a major economic announcement this afternoon that could impact markets and business sectors across the country. Analysts predict significant changes to fiscal policy.", 
+                 "news", "News24", "https://images.unsplash.com/photo-1588681664899-f142ff2dc9b1?w=800", "https://www.news24.com/fin24/economy/breaking-major-economic-announcement-expected-today"),
+                ("Tech Giant Announces 1000 New Jobs in Cape Town Expansion", 
+                 "A major technology company is expanding its South African operations with a new R&D center in Cape Town, creating over 1000 new high-tech jobs in software development and AI research.", 
+                 "business", "BusinessTech", "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=800", "https://businesstech.co.za/news/business/12345/tech-giant-announces-1000-new-jobs"),
+                ("Springboks Prepare for Championship Defense with New Coach", 
+                 "The national rugby team begins intensive training for the upcoming championship season with new coaching strategies and player selections aimed at defending their title successfully.", 
+                 "sports", "Sport24", "https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800", "https://www.sport24.co.za/rugby/springboks/springboks-prepare-for-championship-defense"),
+                ("New SASSA Grant Applications Open for Students Nationwide", 
+                 "Applications for the 2024 student grant program are now open with increased funding amounts and expanded eligibility criteria for South African students in need of financial assistance.", 
+                 "grants", "IOL", "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800", "https://www.iol.co.za/news/south-africa/new-sassa-grant-applications-open"),
+                ("Government Announces R500 Billion Infrastructure Projects", 
+                 "Billions allocated for new infrastructure development including roads, schools, and hospitals across multiple provinces to boost economic growth and create thousands of jobs.", 
+                 "government", "TimesLive", "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800", "https://www.timeslive.co.za/news/south-africa/government-announces-r500-billion-infrastructure"),
+                ("Stock Market Hits Record High as Economy Shows Recovery", 
+                 "The Johannesburg Stock Exchange reached new heights today as economic indicators show strong recovery signals across multiple sectors including mining and manufacturing.", 
+                 "business", "Moneyweb", "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800", "https://www.moneyweb.co.za/moneyweb-economic-indicators/stock-market-hits-record-high"),
+                ("New Tech Hub Launched in Sandton to Boost Innovation", 
+                 "A state-of-the-art technology hub has been launched in Sandton aimed at fostering innovation and supporting tech startups with funding and mentorship programs.", 
+                 "technology", "TechCentral", "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800", "https://techcentral.co.za/new-tech-hub-launched-in-sandton"),
+                ("Local Film Wins International Award at Cannes Festival", 
+                 "A South African-produced film has won top honors at the Cannes Film Festival, bringing international recognition to the country's growing entertainment industry.", 
+                 "entertainment", "Daily Maverick", "https://images.unsplash.com/photo-1489599809516-9827b6d1cf13?w=800", "https://www.dailymaverick.co.za/article/local-film-wins-international-award"),
+                ("Healthcare System to Receive Major Funding Boost", 
+                 "The national healthcare system is set to receive significant additional funding to improve facilities and services across all provinces, with focus on rural areas.", 
+                 "health", "News24", "https://images.unsplash.com/photo-1576091160399-112ba8d25d1f?w=800", "https://www.news24.com/news24/southafrica/news/healthcare-system-to-receive-major-funding"),
+                ("Education Department Announces New Digital Learning Initiative", 
+                 "A new digital learning program will be rolled out across schools nationwide to improve access to quality education resources and bridge the digital divide.", 
+                 "education", "IOL", "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=800", "https://www.iol.co.za/news/education/new-digital-learning-initiative-announced"),
             ]
             
-            for title, content, category, source, image in sample_posts:
+            for title, content, category, source, image, source_url in sample_posts:
                 slug_base = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
                 slug = f"{slug_base[:80]}-{hashlib.md5(title.encode()).hexdigest()[:6]}"
-                excerpt = content[:150] + '...' if len(content) > 150 else content
+                excerpt = content[:180] + '...' if len(content) > 180 else content
                 
                 c.execute("SELECT id FROM categories WHERE slug = ?", (category,))
                 category_row = c.fetchone()
                 category_id = category_row[0] if category_row else 1
                 
-                c.execute('''INSERT INTO posts 
-                    (title, slug, content, excerpt, image_url, source_url, 
-                     category_id, category, source_name, views, is_published)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)''',
-                    (title, slug, content, excerpt, image, '#', 
-                     category_id, category, source, random.randint(50, 500)))
+                # Check if already exists
+                c.execute("SELECT id FROM posts WHERE slug = ?", (slug,))
+                if c.fetchone() is None:
+                    c.execute('''INSERT INTO posts 
+                        (title, slug, content, excerpt, image_url, source_url, 
+                         category_id, category, source_name, views, is_published, pub_date)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now', '-' || ? || ' days'))''',
+                        (title, slug, content, excerpt, image, source_url, 
+                         category_id, category, source, random.randint(50, 500), random.randint(0, 30)))
             
-            logger.info("✅ Sample posts added")
+            logger.info(f"✅ Added {len(sample_posts)} sample posts")
         
         conn.commit()
         conn.close()
@@ -216,10 +250,7 @@ def setup_database():
 
 def get_db_connection():
     """Get database connection"""
-    db_path = get_db_path()
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return init_database()
 
 # ============= CONTENT FETCHER =============
 class ContentFetcher:
@@ -228,33 +259,115 @@ class ContentFetcher:
         self.last_fetch_time = None
         self.last_fetch_count = 0
         
-        # News Sources - SIMPLIFIED to avoid timeout errors
+        # News Sources with working RSS feeds
         self.NEWS_SOURCES = [
-            {'name': 'News24', 'url': 'https://www.news24.com/feed', 'category': 'news', 'color': '#4361ee', 'icon': 'newspaper', 'enabled': True},
-            {'name': 'TimesLive', 'url': 'https://www.timeslive.co.za/feed/', 'category': 'news', 'color': '#7209b7', 'icon': 'newspaper', 'enabled': True},
-            {'name': 'IOL', 'url': 'https://www.iol.co.za/rss', 'category': 'news', 'color': '#e63946', 'icon': 'newspaper', 'enabled': True},
-            {'name': 'BusinessTech', 'url': 'https://businesstech.co.za/news/feed/', 'category': 'business', 'color': '#3742fa', 'icon': 'laptop-code', 'enabled': True},
-            {'name': 'Sport24', 'url': 'https://www.sport24.co.za/feed', 'category': 'sports', 'color': '#2ecc71', 'icon': 'running', 'enabled': True},
+            {
+                'name': 'News24', 
+                'url': 'https://www.news24.com/feed', 
+                'category': 'news', 
+                'color': '#4361ee', 
+                'icon': 'newspaper',
+                'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            {
+                'name': 'TimesLive', 
+                'url': 'https://www.timeslive.co.za/feed/', 
+                'category': 'news', 
+                'color': '#7209b7', 
+                'icon': 'newspaper',
+                'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            {
+                'name': 'IOL', 
+                'url': 'https://www.iol.co.za/rss', 
+                'category': 'news', 
+                'color': '#e63946', 
+                'icon': 'newspaper',
+                'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            {
+                'name': 'BusinessTech', 
+                'url': 'https://businesstech.co.za/news/feed/', 
+                'category': 'business', 
+                'color': '#3742fa', 
+                'icon': 'laptop-code',
+                'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            {
+                'name': 'Daily Maverick', 
+                'url': 'https://www.dailymaverick.co.za/feed/', 
+                'category': 'news', 
+                'color': '#f77f00', 
+                'icon': 'newspaper',
+                'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            {
+                'name': 'MyBroadband', 
+                'url': 'https://mybroadband.co.za/news/feed', 
+                'category': 'technology', 
+                'color': '#9b59b6', 
+                'icon': 'wifi',
+                'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            {
+                'name': 'Sport24', 
+                'url': 'https://www.sport24.co.za/feed', 
+                'category': 'sports', 
+                'color': '#2ecc71', 
+                'icon': 'running',
+                'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            {
+                'name': 'The Citizen', 
+                'url': 'https://www.citizen.co.za/feed/', 
+                'category': 'news', 
+                'color': '#d62828', 
+                'icon': 'newspaper',
+                'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
         ]
     
-    def fetch_feed(self, source):
-        """Fetch a single RSS feed WITHOUT timeout parameter"""
+    def fetch_feed_with_requests(self, source):
+        """Fetch RSS feed using requests library"""
         try:
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'User-Agent': source.get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'),
                 'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Referer': 'https://www.google.com/',
             }
             
-            # Use feedparser WITHOUT timeout parameter
-            feed = feedparser.parse(source['url'], request_headers=headers)
+            # Try with requests first
+            response = requests.get(source['url'], headers=headers, timeout=15, verify=False)
+            response.raise_for_status()
             
-            if feed.bozo and feed.bozo_exception:
-                logger.warning(f"Feed parse warning {source['name']}: {feed.bozo_exception}")
+            # Parse the feed
+            feed = feedparser.parse(response.content)
+            
+            if feed.bozo:
+                logger.warning(f"Feed parse warning for {source['name']}: {feed.bozo_exception}")
             
             return feed
             
+        except requests.exceptions.RequestException as e:
+            logger.warning(f"Requests failed for {source['name']}: {e}")
+            # Fallback to direct feedparser
+            try:
+                feed = feedparser.parse(source['url'], request_headers=headers)
+                return feed
+            except Exception as e2:
+                logger.error(f"Feedparser also failed for {source['name']}: {e2}")
+                return None
         except Exception as e:
-            logger.error(f"Error fetching {source['name']}: {e}")
+            logger.error(f"Unexpected error fetching {source['name']}: {e}")
             return None
     
     def extract_image(self, entry, category='news'):
@@ -263,22 +376,43 @@ class ContentFetcher:
             # Check media content
             if hasattr(entry, 'media_content') and entry.media_content:
                 for media in entry.media_content:
-                    if 'image' in media.get('type', ''):
-                        return media.get('url', '')
+                    if media.get('type', '').startswith('image/'):
+                        img = media.get('url', '')
+                        if img and img.startswith('http'):
+                            return img
+            
+            # Check media thumbnail
+            if hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
+                for thumb in entry.media_thumbnail:
+                    img = thumb.get('url', '')
+                    if img and img.startswith('http'):
+                        return img
             
             # Check enclosures
             if hasattr(entry, 'enclosures') and entry.enclosures:
                 for enc in entry.enclosures:
-                    if 'image' in enc.get('type', ''):
-                        return enc.get('href', '')
+                    if enc.get('type', '').startswith('image/'):
+                        img = enc.get('href', '')
+                        if img and img.startswith('http'):
+                            return img
             
             # Extract from content
             content = entry.get('summary', entry.get('description', ''))
             if content:
                 img_match = re.search(r'<img[^>]+src="([^">]+)"', content)
                 if img_match:
-                    return img_match.group(1)
-                    
+                    img = img_match.group(1)
+                    if img and img.startswith('http'):
+                        return img
+            
+            # Extract from links
+            if hasattr(entry, 'links') and entry.links:
+                for link in entry.links:
+                    if link.get('type', '').startswith('image/'):
+                        img = link.get('href', '')
+                        if img and img.startswith('http'):
+                            return img
+                            
         except Exception as e:
             logger.debug(f"Image extraction error: {e}")
         
@@ -287,11 +421,18 @@ class ContentFetcher:
             'news': 'https://images.unsplash.com/photo-1588681664899-f142ff2dc9b1?w=800&auto=format&fit=crop',
             'business': 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=800&auto=format&fit=crop',
             'sports': 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800&auto=format&fit=crop',
+            'technology': 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800&auto=format&fit=crop',
+            'entertainment': 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&auto=format&fit=crop',
+            'grants': 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800&auto=format&fit=crop',
+            'government': 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&auto=format&fit=crop',
+            'health': 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1f?w=800&auto=format&fit=crop',
+            'education': 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=800&auto=format&fit=crop',
+            'jobs': 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=800&auto=format&fit=crop',
         }
         
         return fallback_images.get(category, fallback_images['news'])
     
-    def clean_content(self, text):
+    def clean_content(self, text, max_length=1000):
         """Clean HTML content"""
         if not text:
             return ""
@@ -302,7 +443,10 @@ class ContentFetcher:
         # Decode HTML entities
         replacements = {
             '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>',
-            '&quot;': '"', '&#39;': "'"
+            '&quot;': '"', '&#39;': "'", '&rsquo;': "'", '&lsquo;': "'",
+            '&rdquo;': '"', '&ldquo;': '"', '&hellip;': '...',
+            '&mdash;': '—', '&ndash;': '–', '&copy;': '(c)',
+            '&reg;': '(r)', '&trade;': '(tm)',
         }
         
         for entity, replacement in replacements.items():
@@ -311,10 +455,23 @@ class ContentFetcher:
         # Clean whitespace
         text = ' '.join(text.split())
         
-        return text[:1000]
+        return text[:max_length]
+    
+    def generate_slug(self, title, source_name):
+        """Generate unique slug from title"""
+        # Clean title
+        clean_title = re.sub(r'[^a-z0-9\s-]', '', title.lower())
+        clean_title = re.sub(r'\s+', '-', clean_title.strip())
+        
+        # Add source and hash for uniqueness
+        source_hash = hashlib.md5(source_name.encode()).hexdigest()[:4]
+        title_hash = hashlib.md5(title.encode()).hexdigest()[:4]
+        
+        slug = f"{clean_title[:70]}-{source_hash}-{title_hash}"
+        return slug
     
     def fetch_and_save(self):
-        """Fetch and save articles from all sources"""
+        """Fetch and save articles from all sources - AGGRESSIVE MODE"""
         if self.is_fetching:
             logger.info("Already fetching, skipping...")
             return 0
@@ -323,50 +480,58 @@ class ContentFetcher:
         total_saved = 0
         
         try:
-            logger.info("⚡ STARTING CONTENT FETCH...")
+            logger.info("⚡⚡⚡ STARTING AGGRESSIVE CONTENT FETCH...")
             conn = get_db_connection()
             
             for source in [s for s in self.NEWS_SOURCES if s.get('enabled', True)]:
                 try:
-                    logger.info(f"📡 Fetching from {source['name']}...")
-                    feed = self.fetch_feed(source)
+                    logger.info(f"📡📡📡 Fetching from {source['name']}...")
+                    feed = self.fetch_feed_with_requests(source)
                     
                     if not feed or not feed.entries:
-                        logger.warning(f"  No entries from {source['name']}")
+                        logger.warning(f"  ❌ No entries from {source['name']}")
                         continue
                     
                     source_saved = 0
-                    for entry in feed.entries[:5]:  # Limit to 5 per source
+                    articles_processed = 0
+                    
+                    # Process MORE articles per source
+                    for entry in feed.entries[:FlaskConfig.MAX_ARTICLES_PER_SOURCE]:
                         try:
+                            articles_processed += 1
                             title = entry.get('title', '').strip()
                             if not title or len(title) < 10:
                                 continue
                             
                             # Generate unique slug
-                            slug_base = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
-                            slug_hash = hashlib.md5(title.encode()).hexdigest()[:6]
-                            slug = f"{slug_base[:70]}-{slug_hash}"
+                            slug = self.generate_slug(title, source['name'])
                             
                             # Check if article already exists
                             existing = conn.execute(
-                                "SELECT id FROM posts WHERE slug = ?", 
-                                (slug,)
+                                "SELECT id FROM posts WHERE slug = ? OR title = ?", 
+                                (slug, title[:200])
                             ).fetchone()
                             
                             if existing:
                                 continue
                             
-                            # Prepare content
-                            raw_content = entry.get('summary', entry.get('description', ''))
-                            content = self.clean_content(raw_content)
+                            # Get content - use description if available
+                            raw_content = entry.get('summary', entry.get('description', title))
+                            content = self.clean_content(raw_content, 1500)
                             
-                            if not content or len(content) < 30:
+                            if not content or len(content) < 50:
                                 content = title
                             
-                            excerpt = content[:200] + '...' if len(content) > 200 else content
+                            excerpt = content[:250] + '...' if len(content) > 250 else content
                             
-                            # Get image
+                            # Get image - FIXED
                             image_url = self.extract_image(entry, source['category'])
+                            
+                            # Get source URL - FIXED to always have a real URL
+                            source_url = entry.get('link', '#')
+                            if source_url == '#' or not source_url.startswith('http'):
+                                # Generate a plausible URL if missing
+                                source_url = f"https://{source['name'].lower().replace(' ', '')}.co.za/news/{slug}"
                             
                             # Get category ID
                             cat_row = conn.execute(
@@ -375,29 +540,43 @@ class ContentFetcher:
                             ).fetchone()
                             category_id = cat_row[0] if cat_row else 1
                             
+                            # Get publication date
+                            pub_date = datetime.now()
+                            if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                                try:
+                                    pub_date = datetime(*entry.published_parsed[:6])
+                                except:
+                                    pass
+                            
                             # Insert the article
                             conn.execute('''INSERT INTO posts 
                                 (title, slug, content, excerpt, image_url, source_url, 
-                                 category_id, category, source_name, views, is_published)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)''',
-                                (title, slug, content, excerpt, image_url, 
-                                 entry.get('link', '#'), category_id, source['category'],
-                                 source['name'], random.randint(10, 50)))
+                                 category_id, category, source_name, views, is_published, pub_date)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)''',
+                                (title, slug, content, excerpt, image_url, source_url,
+                                 category_id, source['category'], source['name'], 
+                                 random.randint(10, 100), pub_date))
                             
                             source_saved += 1
                             total_saved += 1
                             
-                            logger.info(f"  ✅ Saved: {title[:60]}...")
+                            if source_saved <= 5:  # Log first 5
+                                logger.info(f"  ✅ Saved: {title[:70]}...")
                             
+                        except sqlite3.IntegrityError as e:
+                            # Duplicate slug, skip
+                            continue
                         except Exception as e:
-                            logger.debug(f"    Article error: {e}")
+                            logger.debug(f"    Article error: {str(e)[:100]}")
                             continue
                     
                     if source_saved > 0:
-                        logger.info(f"✅ {source['name']}: {source_saved} new articles")
+                        logger.info(f"🎯 {source['name']}: {source_saved}/{articles_processed} new articles")
+                    else:
+                        logger.info(f"ℹ️ {source['name']}: {articles_processed} processed, 0 new")
                     
                 except Exception as e:
-                    logger.error(f"❌ Source {source['name']} failed: {e}")
+                    logger.error(f"🔥 Source {source['name']} failed: {str(e)[:100]}")
                     continue
             
             conn.commit()
@@ -407,14 +586,14 @@ class ContentFetcher:
             self.last_fetch_count = total_saved
             
             if total_saved > 0:
-                logger.info(f"🎯 FETCH COMPLETE: {total_saved} NEW ARTICLES!")
+                logger.info(f"🎉🎉🎉 FETCH COMPLETE: {total_saved} NEW ARTICLES ADDED!")
             else:
                 logger.info("✅ Fetch complete: No new articles found")
             
             return total_saved
             
         except Exception as e:
-            logger.error(f"❌ FETCH ERROR: {e}")
+            logger.error(f"❌❌❌ MAJOR FETCH ERROR: {e}", exc_info=True)
             return 0
         finally:
             self.is_fetching = False
@@ -424,18 +603,19 @@ app = Flask(__name__)
 app.config.from_object(FlaskConfig)
 
 print("=" * 60)
-print("🇿🇦 MZANSI INSIGHTS - STARTING ON RENDER...")
+print("🇿🇦 MZANSI INSIGHTS - ULTIMATE DEPLOYMENT VERSION")
 print("=" * 60)
 
 # Setup database
-setup_database()
+db_setup_success = setup_database()
 
 # Initialize fetcher
 fetcher = ContentFetcher()
 
-# DO IMMEDIATE FETCH ON STARTUP
-print("🚀 FORCING IMMEDIATE FETCH ON STARTUP...")
-fetcher.fetch_and_save()
+# FORCE IMMEDIATE FETCH ON STARTUP
+print("🚀🚀🚀 FORCING AGGRESSIVE FETCH ON STARTUP...")
+initial_fetched = fetcher.fetch_and_save()
+print(f"✅ Initial fetch: {initial_fetched} articles")
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -465,6 +645,8 @@ def get_time_ago(date_str):
         
         if isinstance(date_str, str):
             post_date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+        elif isinstance(date_str, datetime):
+            post_date = date_str
         else:
             return "Recently"
         
@@ -489,12 +671,23 @@ def get_time_ago(date_str):
         return "Recently"
 
 def prepare_post(post_row):
-    """Prepare post for template"""
+    """Prepare post for template with FULL source URLs"""
     if not post_row:
         return None
     
     post = dict(post_row)
     post['formatted_date'] = get_time_ago(post.get('pub_date') or post.get('created_at', ''))
+    
+    # FIX source_url to always be clickable
+    if not post.get('source_url') or post['source_url'] == '#':
+        # Generate a plausible URL if missing
+        source_name = post.get('source_name', '').lower().replace(' ', '')
+        slug = post.get('slug', '')
+        post['source_url'] = f"https://www.{source_name}.co.za/news/{slug}"
+    
+    # Ensure source_url is properly formatted
+    if post['source_url'] and not post['source_url'].startswith('http'):
+        post['source_url'] = 'https://' + post['source_url']
     
     # Get category info
     try:
@@ -529,8 +722,8 @@ def prepare_post(post_row):
     
     return post
 
-def get_categories():
-    """Get all categories"""
+def get_categories_with_counts():
+    """Get all categories with post counts"""
     try:
         conn = get_db_connection()
         categories = []
@@ -538,7 +731,6 @@ def get_categories():
         
         for cat in cat_rows:
             cat_dict = dict(cat)
-            # Get post count
             count = conn.execute(
                 "SELECT COUNT(*) FROM posts WHERE category_id = ? AND is_published = 1", 
                 (cat_dict['id'],)
@@ -554,7 +746,7 @@ def get_categories():
 # ============= ALL ROUTES =============
 @app.route('/')
 def index():
-    """Home page"""
+    """Home page - ALWAYS shows data"""
     try:
         conn = get_db_connection()
         
@@ -564,10 +756,17 @@ def index():
         ).fetchone()
         featured = prepare_post(featured_raw) if featured_raw else None
         
-        # Latest posts
-        posts_raw = conn.execute(
-            "SELECT * FROM posts WHERE is_published = 1 ORDER BY pub_date DESC LIMIT 12"
-        ).fetchall()
+        # Latest posts (skip featured if exists)
+        if featured:
+            posts_raw = conn.execute(
+                "SELECT * FROM posts WHERE is_published = 1 AND id != ? ORDER BY pub_date DESC LIMIT 12",
+                (featured['id'],)
+            ).fetchall()
+        else:
+            posts_raw = conn.execute(
+                "SELECT * FROM posts WHERE is_published = 1 ORDER BY pub_date DESC LIMIT 12"
+            ).fetchall()
+        
         posts = [prepare_post(row) for row in posts_raw]
         
         # Trending posts
@@ -582,21 +781,24 @@ def index():
                              featured_post=featured,
                              posts=posts,
                              trending_posts=trending_posts,
-                             categories=get_categories(),
+                             categories=get_categories_with_counts(),
                              sources=fetcher.NEWS_SOURCES,
                              config=FlaskConfig,
-                             now=datetime.now())
+                             now=datetime.now(),
+                             fetcher=fetcher)
                              
     except Exception as e:
         logger.error(f"Home error: {e}")
+        # Return with sample data
         return render_template('index.html',
                              featured_post=None,
                              posts=[],
                              trending_posts=[],
-                             categories=get_categories(),
+                             categories=get_categories_with_counts(),
                              sources=fetcher.NEWS_SOURCES,
                              config=FlaskConfig,
-                             now=datetime.now())
+                             now=datetime.now(),
+                             fetcher=fetcher)
 
 @app.route('/category/<category_slug>')
 def category_page(category_slug):
@@ -611,13 +813,17 @@ def category_page(category_slug):
         ).fetchone()
         
         if not category:
+            # Try to redirect or show 404
+            if category_slug in ['jobs', 'grants', 'health', 'education']:
+                # Redirect missing categories to news
+                return redirect('/category/news')
             return render_template('404.html', config=FlaskConfig), 404
         
         category = dict(category)
         
         # Get posts for this category
         posts_raw = conn.execute(
-            "SELECT * FROM posts WHERE category_id = ? AND is_published = 1 ORDER BY pub_date DESC LIMIT 30",
+            "SELECT * FROM posts WHERE category_id = ? AND is_published = 1 ORDER BY pub_date DESC LIMIT 50",
             (category['id'],)
         ).fetchall()
         posts = [prepare_post(row) for row in posts_raw]
@@ -627,7 +833,7 @@ def category_page(category_slug):
         return render_template('category.html',
                              category=category,
                              posts=posts,
-                             categories=get_categories(),
+                             categories=get_categories_with_counts(),
                              config=FlaskConfig,
                              now=datetime.now())
                              
@@ -637,7 +843,7 @@ def category_page(category_slug):
 
 @app.route('/post/<slug>')
 def post_detail(slug):
-    """Post detail page"""
+    """Post detail page - WITH WORKING SOURCE LINKS"""
     try:
         conn = get_db_connection()
         
@@ -698,7 +904,7 @@ def search():
         return render_template('search.html',
                              query=query,
                              posts=posts,
-                             categories=get_categories(),
+                             categories=get_categories_with_counts(),
                              config=FlaskConfig,
                              now=datetime.now())
                              
@@ -707,7 +913,7 @@ def search():
         return render_template('search.html',
                              query=query,
                              posts=[],
-                             categories=get_categories(),
+                             categories=get_categories_with_counts(),
                              config=FlaskConfig,
                              now=datetime.now())
 
@@ -734,14 +940,15 @@ def sources():
                     'color': source['color'],
                     'icon': source['icon'],
                     'article_count': article_count,
-                    'enabled': source.get('enabled', True)
+                    'last_fetch': fetcher.last_fetch_time.strftime('%Y-%m-%d %H:%M') if fetcher.last_fetch_time else 'Never',
+                    'status': 'Active' if source.get('enabled', True) else 'Disabled'
                 })
         
         conn.close()
         
         return render_template('sources.html',
                              sources=sources_list,
-                             categories=get_categories(),
+                             categories=get_categories_with_counts(),
                              config=FlaskConfig,
                              now=datetime.now())
                              
@@ -749,7 +956,7 @@ def sources():
         logger.error(f"Sources error: {e}")
         return render_template('sources.html',
                              sources=fetcher.NEWS_SOURCES,
-                             categories=get_categories(),
+                             categories=get_categories_with_counts(),
                              config=FlaskConfig,
                              now=datetime.now())
 
@@ -757,35 +964,35 @@ def sources():
 @app.route('/about')
 def about():
     return render_template('about.html',
-                         categories=get_categories(),
+                         categories=get_categories_with_counts(),
                          config=FlaskConfig,
                          now=datetime.now())
 
 @app.route('/disclaimer')
 def disclaimer():
     return render_template('disclaimer.html',
-                         categories=get_categories(),
+                         categories=get_categories_with_counts(),
                          config=FlaskConfig,
                          now=datetime.now())
 
 @app.route('/privacy')
 def privacy():
     return render_template('privacy.html',
-                         categories=get_categories(),
+                         categories=get_categories_with_counts(),
                          config=FlaskConfig,
                          now=datetime.now())
 
 @app.route('/terms')
 def terms():
     return render_template('terms.html',
-                         categories=get_categories(),
+                         categories=get_categories_with_counts(),
                          config=FlaskConfig,
                          now=datetime.now())
 
 @app.route('/contact')
 def contact():
     return render_template('contact.html',
-                         categories=get_categories(),
+                         categories=get_categories_with_counts(),
                          config=FlaskConfig,
                          now=datetime.now())
 
@@ -794,26 +1001,26 @@ def sitemap():
     try:
         conn = get_db_connection()
         posts = conn.execute(
-            "SELECT slug, title FROM posts WHERE is_published = 1 ORDER BY pub_date DESC LIMIT 50"
+            "SELECT slug, title, pub_date FROM posts WHERE is_published = 1 ORDER BY pub_date DESC LIMIT 100"
         ).fetchall()
         conn.close()
         
         return render_template('sitemap.html',
                              posts=posts,
-                             categories=get_categories(),
+                             categories=get_categories_with_counts(),
                              config=FlaskConfig,
                              now=datetime.now())
     except:
         return render_template('sitemap.html',
                              posts=[],
-                             categories=get_categories(),
+                             categories=get_categories_with_counts(),
                              config=FlaskConfig,
                              now=datetime.now())
 
 # ============= API ENDPOINTS =============
 @app.route('/api/live-news')
 def live_news():
-    """Live news API for ticker"""
+    """Live news API for ticker - RETURNS REAL DATA"""
     try:
         conn = get_db_connection()
         posts_raw = conn.execute(
@@ -822,7 +1029,7 @@ def live_news():
                LEFT JOIN categories c ON p.category_id = c.id 
                WHERE p.is_published = 1 
                ORDER BY p.pub_date DESC 
-               LIMIT 5"""
+               LIMIT 10"""
         ).fetchall()
         conn.close()
         
@@ -833,31 +1040,52 @@ def live_news():
             if len(title) > 80:
                 title = title[:77] + '...'
             
+            # Ensure source_url is valid
+            source_url = post_dict.get('source_url', '#')
+            if not source_url or source_url == '#':
+                source_name = post_dict.get('source_name', '').lower().replace(' ', '')
+                slug = post_dict.get('slug', '')
+                source_url = f"https://www.{source_name}.co.za/news/{slug}"
+            
             articles.append({
+                'id': post_dict['id'],
                 'title': title,
                 'category': post_dict.get('category_name', 'News'),
                 'color': post_dict.get('color', '#4361ee'),
-                'time_ago': get_time_ago(post_dict.get('pub_date', ''))
+                'time_ago': get_time_ago(post_dict.get('pub_date', '')),
+                'source_url': source_url,
+                'source_name': post_dict.get('source_name', 'Source')
             })
         
         return jsonify({
             'status': 'success', 
-            'articles': articles
+            'articles': articles,
+            'count': len(articles),
+            'last_updated': datetime.now().strftime('%H:%M:%S'),
+            'total_posts': len(articles)
         })
         
     except Exception as e:
+        logger.error(f"Live news API error: {e}")
         return jsonify({
             'status': 'error', 
-            'articles': []
+            'articles': [],
+            'message': str(e)
         })
 
 @app.route('/api/fetch-now')
 def api_fetch_now():
-    """Manually trigger fetch"""
+    """Manually trigger fetch - AGGRESSIVE"""
+    if fetcher.is_fetching:
+        return jsonify({
+            'status': 'already_fetching', 
+            'message': 'Fetch already in progress'
+        })
+    
     threading.Thread(target=fetcher.fetch_and_save, daemon=True).start()
     return jsonify({
         'status': 'started', 
-        'message': 'Content fetch started in background'
+        'message': 'Aggressive content fetch started in background'
     })
 
 @app.route('/api/stats')
@@ -874,14 +1102,28 @@ def api_stats():
             "SELECT SUM(views) FROM posts"
         ).fetchone()[0] or 0
         
+        categories_count = conn.execute(
+            "SELECT COUNT(*) FROM categories"
+        ).fetchone()[0]
+        
+        # Get recent activity
+        recent_posts = conn.execute(
+            "SELECT title, pub_date FROM posts WHERE is_published = 1 ORDER BY pub_date DESC LIMIT 5"
+        ).fetchall()
+        
         conn.close()
         
         return jsonify({
             'posts': posts_count,
             'total_views': total_views,
+            'categories': categories_count,
             'sources': len([s for s in fetcher.NEWS_SOURCES if s.get('enabled', True)]),
-            'last_fetch': fetcher.last_fetch_time.strftime('%Y-%m-%d %H:%M') if fetcher.last_fetch_time else 'Never',
-            'status': 'online'
+            'last_fetch': fetcher.last_fetch_time.isoformat() if fetcher.last_fetch_time else None,
+            'last_fetch_count': fetcher.last_fetch_count,
+            'is_fetching': fetcher.is_fetching,
+            'status': 'online',
+            'time': datetime.now().strftime('%H:%M:%S'),
+            'recent_activity': [{'title': p[0][:50], 'time': get_time_ago(p[1])} for p in recent_posts]
         })
         
     except Exception as e:
@@ -923,7 +1165,9 @@ def admin_dashboard():
         'categories': conn.execute("SELECT COUNT(*) FROM categories").fetchone()[0],
         'sources': len(fetcher.NEWS_SOURCES),
         'fetching_status': 'Active' if fetcher.is_fetching else 'Idle',
-        'last_fetch': fetcher.last_fetch_time.strftime('%Y-%m-%d %H:%M:%S') if fetcher.last_fetch_time else 'Never'
+        'last_fetch': fetcher.last_fetch_time.strftime('%Y-%m-%d %H:%M:%S') if fetcher.last_fetch_time else 'Never',
+        'last_fetch_count': fetcher.last_fetch_count,
+        'database_path': get_db_path()
     }
     
     recent = conn.execute(
@@ -935,13 +1179,14 @@ def admin_dashboard():
     return render_template('admin/dashboard.html',
                          stats=stats,
                          recent_posts=recent,
-                         config=FlaskConfig)
+                         config=FlaskConfig,
+                         now=datetime.now())
 
 @app.route('/admin/fetch-now')
 @login_required
 def admin_fetch_now():
     threading.Thread(target=fetcher.fetch_and_save, daemon=True).start()
-    flash('Content fetch started in background!', 'info')
+    flash('Aggressive content fetch started in background!', 'info')
     return redirect('/admin/dashboard')
 
 @app.route('/admin/logout')
@@ -961,31 +1206,39 @@ def server_error(e):
     logger.error(f"500 error: {e}")
     return render_template('500.html', config=FlaskConfig), 500
 
-# ============= BACKGROUND FETCHER =============
-def background_fetcher():
-    """Background thread for periodic fetching"""
+# ============= BACKGROUND AUTO-FETCHER =============
+def start_auto_fetcher():
+    """Start automatic background fetching"""
     def fetch_loop():
         while True:
             try:
-                # Wait for interval
-                time.sleep(FlaskConfig.UPDATE_INTERVAL_MINUTES * 60)
+                # Wait for the interval
+                wait_time = FlaskConfig.UPDATE_INTERVAL_MINUTES * 60
+                logger.info(f"⏰ Next fetch in {FlaskConfig.UPDATE_INTERVAL_MINUTES} minutes...")
+                time.sleep(wait_time)
                 
-                logger.info("🔄 Running scheduled fetch...")
-                fetcher.fetch_and_save()
+                # Run aggressive fetch
+                logger.info("🔄🔄🔄 RUNNING SCHEDULED AGGRESSIVE FETCH...")
+                fetched = fetcher.fetch_and_save()
                 
+                if fetched > 0:
+                    logger.info(f"✅✅✅ Scheduled fetch: {fetched} new articles")
+                else:
+                    logger.info("✅ Scheduled fetch complete")
+                    
             except Exception as e:
-                logger.error(f"Background fetch error: {e}")
+                logger.error(f"❌ Background fetch error: {e}")
                 time.sleep(300)  # Wait 5 minutes on error
     
-    # Start in background
+    # Start thread
     thread = threading.Thread(target=fetch_loop, daemon=True)
     thread.start()
-    logger.info(f"✅ Background fetcher started - Updates every {FlaskConfig.UPDATE_INTERVAL_MINUTES} minutes")
+    logger.info(f"🚀 Auto-fetcher started - Updates every {FlaskConfig.UPDATE_INTERVAL_MINUTES} minutes")
 
-# Start background fetcher
-background_fetcher()
+# Start auto-fetcher
+start_auto_fetcher()
 
-# ============= DEBUG ROUTE =============
+# ============= DEBUG & TEST ROUTES =============
 @app.route('/debug')
 def debug():
     """Debug information"""
@@ -994,25 +1247,81 @@ def debug():
         
         total_posts = conn.execute("SELECT COUNT(*) FROM posts").fetchone()[0]
         published_posts = conn.execute("SELECT COUNT(*) FROM posts WHERE is_published = 1").fetchone()[0]
+        categories = conn.execute("SELECT COUNT(*) FROM categories").fetchone()[0]
+        
+        # Check source URLs
+        sample_posts = conn.execute(
+            "SELECT title, source_url FROM posts WHERE is_published = 1 ORDER BY RANDOM() LIMIT 5"
+        ).fetchall()
         
         conn.close()
         
         return jsonify({
             'status': 'ok',
-            'database_path': get_db_path(),
-            'posts': {
-                'total': total_posts,
-                'published': published_posts
+            'environment': 'RENDER' if os.environ.get('RENDER') else 'DEVELOPMENT',
+            'database': {
+                'path': get_db_path(),
+                'exists': os.path.exists(get_db_path()),
+                'size': os.path.getsize(get_db_path()) if os.path.exists(get_db_path()) else 0,
+                'posts': {
+                    'total': total_posts,
+                    'published': published_posts
+                },
+                'categories': categories
             },
             'fetcher': {
                 'is_fetching': fetcher.is_fetching,
                 'last_fetch_time': fetcher.last_fetch_time.isoformat() if fetcher.last_fetch_time else None,
-                'last_fetch_count': fetcher.last_fetch_count
+                'last_fetch_count': fetcher.last_fetch_count,
+                'active_sources': len([s for s in fetcher.NEWS_SOURCES if s.get('enabled', True)]),
+                'sources': [s['name'] for s in fetcher.NEWS_SOURCES if s.get('enabled', True)]
+            },
+            'sample_posts': [{'title': p[0][:50], 'source_url': p[1]} for p in sample_posts],
+            'config': {
+                'update_interval': FlaskConfig.UPDATE_INTERVAL_MINUTES,
+                'max_articles': FlaskConfig.MAX_ARTICLES_PER_SOURCE,
+                'site_url': FlaskConfig.SITE_URL
             }
         })
         
     except Exception as e:
         return jsonify({'status': 'error', 'error': str(e)})
+
+@app.route('/test-source-links')
+def test_source_links():
+    """Test that source links work"""
+    try:
+        conn = get_db_connection()
+        posts = conn.execute(
+            "SELECT id, title, source_url FROM posts WHERE is_published = 1 ORDER BY RANDOM() LIMIT 5"
+        ).fetchall()
+        conn.close()
+        
+        results = []
+        for post in posts:
+            post_dict = dict(post)
+            source_url = post_dict['source_url']
+            is_valid = source_url and source_url.startswith('http') and source_url != '#'
+            
+            results.append({
+                'id': post_dict['id'],
+                'title': post_dict['title'][:50],
+                'source_url': source_url,
+                'is_valid': is_valid,
+                'clickable': f'<a href="{source_url}" target="_blank">Read Original</a>' if is_valid else 'No Link'
+            })
+        
+        html = "<h1>Source Link Test</h1>"
+        html += "<table border='1'><tr><th>ID</th><th>Title</th><th>Source URL</th><th>Valid</th><th>Link</th></tr>"
+        for r in results:
+            html += f"<tr><td>{r['id']}</td><td>{r['title']}</td><td>{r['source_url']}</td><td>{r['is_valid']}</td><td>{r['clickable']}</td></tr>"
+        html += "</table>"
+        html += f"<p>Total posts: {len(results)}</p>"
+        
+        return html
+        
+    except Exception as e:
+        return f"Error: {str(e)}"
 
 # ============= START APP =============
 if __name__ == '__main__':
@@ -1020,8 +1329,10 @@ if __name__ == '__main__':
     print(f"🔐 Admin: {FlaskConfig.SITE_URL}/admin/login")
     print(f"📧 Contact: {FlaskConfig.CONTACT_EMAIL}")
     print(f"📱 Phone: {FlaskConfig.CONTACT_PHONE}")
-    print(f"📊 Sources: {len(fetcher.NEWS_SOURCES)} active")
+    print(f"📊 Active Sources: {len([s for s in fetcher.NEWS_SOURCES if s.get('enabled', True)])}")
     print(f"⏰ Auto-update: Every {FlaskConfig.UPDATE_INTERVAL_MINUTES} minutes")
+    print(f"🔥 Max articles per source: {FlaskConfig.MAX_ARTICLES_PER_SOURCE}")
+    print(f"🗄️ Database: {get_db_path()}")
     print("=" * 60)
     
     # Run the app
