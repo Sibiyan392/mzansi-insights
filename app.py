@@ -205,28 +205,53 @@ class ContentFetcher:
         self.last_fetch_time = None
         self.last_fetch_count = 0
         
-        # WORKING South African News Sources
+        # UPDATED: More reliable South African news sources with working RSS feeds
         self.NEWS_SOURCES = [
+            # News24 - Reliable and working RSS
             {
-                'name': 'SABC News',
-                'url': 'https://www.sabcnews.com/sabcnews/feed/',
+                'name': 'News24',
+                'url': 'https://www.news24.com/rss/',
                 'category': 'news',
-                'color': '#4361ee',
+                'color': '#d62828',
                 'icon': 'newspaper',
                 'enabled': True,
                 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'base_url': 'https://www.sabcnews.com'
+                'base_url': 'https://www.news24.com'
             },
+            # IOL - Working feed
             {
-                'name': 'SA Government News',
-                'url': 'https://www.gov.za/feed',
-                'category': 'government',
-                'color': '#2c3e50',
-                'icon': 'landmark',
+                'name': 'IOL News',
+                'url': 'https://www.iol.co.za/feed',
+                'category': 'news',
+                'color': '#06d6a0',
+                'icon': 'newspaper',
                 'enabled': True,
                 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'base_url': 'https://www.gov.za'
+                'base_url': 'https://www.iol.co.za'
             },
+            # TimesLIVE - Working feed
+            {
+                'name': 'TimesLIVE',
+                'url': 'https://www.timeslive.co.za/feed/',
+                'category': 'news',
+                'color': '#7209b7',
+                'icon': 'newspaper',
+                'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'base_url': 'https://www.timeslive.co.za'
+            },
+            # BusinessLIVE
+            {
+                'name': 'BusinessLIVE',
+                'url': 'https://www.businesslive.co.za/feed/',
+                'category': 'business',
+                'color': '#3742fa',
+                'icon': 'chart-line',
+                'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'base_url': 'https://www.businesslive.co.za'
+            },
+            # MyBroadband - Working technology feed
             {
                 'name': 'MyBroadband',
                 'url': 'https://mybroadband.co.za/news/feed',
@@ -237,6 +262,7 @@ class ContentFetcher:
                 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'base_url': 'https://mybroadband.co.za'
             },
+            # BusinessTech - Working business feed
             {
                 'name': 'BusinessTech',
                 'url': 'https://businesstech.co.za/news/feed/',
@@ -247,6 +273,7 @@ class ContentFetcher:
                 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'base_url': 'https://businesstech.co.za'
             },
+            # TechCentral
             {
                 'name': 'TechCentral',
                 'url': 'https://techcentral.co.za/feed/',
@@ -257,6 +284,29 @@ class ContentFetcher:
                 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'base_url': 'https://techcentral.co.za'
             },
+            # EWN (Eyewitness News)
+            {
+                'name': 'EWN',
+                'url': 'https://ewn.co.za/feeds/rss/all',
+                'category': 'news',
+                'color': '#ef476f',
+                'icon': 'newspaper',
+                'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'base_url': 'https://ewn.co.za'
+            },
+            # Daily Maverick
+            {
+                'name': 'Daily Maverick',
+                'url': 'https://www.dailymaverick.co.za/feed/',
+                'category': 'news',
+                'color': '#ff6b6b',
+                'icon': 'newspaper',
+                'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'base_url': 'https://www.dailymaverick.co.za'
+            },
+            # Moneyweb
             {
                 'name': 'Moneyweb',
                 'url': 'https://www.moneyweb.co.za/feed/',
@@ -267,9 +317,10 @@ class ContentFetcher:
                 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'base_url': 'https://www.moneyweb.co.za'
             },
+            # The Citizen (try alternative URL)
             {
                 'name': 'The Citizen',
-                'url': 'https://citizen.co.za/feed/',
+                'url': 'https://citizen.co.za/feed',
                 'category': 'news',
                 'color': '#d62828',
                 'icon': 'newspaper',
@@ -277,26 +328,39 @@ class ContentFetcher:
                 'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'base_url': 'https://citizen.co.za'
             },
+            # SABC News (try alternative URL)
+            {
+                'name': 'SABC News',
+                'url': 'https://www.sabcnews.com/sabcnews/feed',
+                'category': 'news',
+                'color': '#4361ee',
+                'icon': 'newspaper',
+                'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'base_url': 'https://www.sabcnews.com'
+            }
         ]
     
     def fetch_feed_with_proxy(self, source):
         """Fetch RSS feed with proper headers and error handling"""
         try:
             headers = {
-                'User-Agent': source.get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'),
-                'Accept': 'application/xml, text/xml, */*',
+                'User-Agent': source.get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'),
+                'Accept': 'application/xml, text/xml, */*; q=0.01',
                 'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate',
+                'Accept-Encoding': 'gzip, deflate, br',
                 'Connection': 'keep-alive',
-                'Cache-Control': 'max-age=0'
+                'Cache-Control': 'max-age=0',
+                'Upgrade-Insecure-Requests': '1',
+                'DNT': '1'
             }
             
             # Try with requests first
             response = requests.get(
                 source['url'],
                 headers=headers,
-                timeout=10,
-                verify=False,
+                timeout=15,
+                verify=True,
                 allow_redirects=True
             )
             response.raise_for_status()
@@ -315,7 +379,7 @@ class ContentFetcher:
             return feed
             
         except requests.exceptions.RequestException as e:
-            logger.error(f"Requests failed for {source['name']}: {e}")
+            logger.error(f"Requests failed for {source['name']} ({source['url']}): {e}")
             # Fallback to direct feedparser with custom headers
             try:
                 feed = feedparser.parse(source['url'], request_headers=headers)
@@ -510,7 +574,7 @@ class ContentFetcher:
             
             for source in [s for s in self.NEWS_SOURCES if s.get('enabled', True)]:
                 try:
-                    logger.info(f"📡 Fetching from {source['name']}...")
+                    logger.info(f"📡 Fetching from {source['name']} ({source['url']})...")
                     
                     # Fetch the feed
                     feed = self.fetch_feed_with_proxy(source)
