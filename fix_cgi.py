@@ -1,31 +1,32 @@
-# fix_cgi.py - Compatibility for Python 3.13+
+# cgi_fix.py - Fix for Python 3.13+ cgi module deprecation
 import sys
-import types
+import email
+import email.policy
 
-# Patch cgi module (removed in Python 3.13)
-try:
+# Monkey patch for feedparser compatibility
+if sys.version_info >= (3, 13):
     import cgi
-    print("cgi module already exists")
-except ImportError:
-    print("Patching cgi module for Python 3.13+...")
     
-    class DummyCGI:
-        @staticmethod
-        def escape(s, quote=True):
-            if not s:
-                return s
-            s = s.replace("&", "&amp;")
-            s = s.replace("<", "&lt;")
-            s = s.replace(">", "&gt;")
-            if quote:
-                s = s.replace('"', "&quot;")
-            return s
+    # Create a replacement for parse_header
+    def parse_header(value):
+        """Parse a Content-Type like header."""
+        if not value:
+            return '', {}
+        
+        # Parse with email module
+        msg = email.message_from_string(f'Content-Type: {value}', 
+                                       policy=email.policy.default)
+        main_type = msg.get_content_type()
+        params = dict(msg.get_params())
+        
+        return main_type, params
     
-    cgi_module = types.ModuleType('cgi')
-    cgi_module.escape = DummyCGI.escape
-    sys.modules['cgi'] = cgi_module
+    # Monkey patch cgi module
+    cgi.parse_header = parse_header
     
-    # Also ensure html module has escape
-    import html
-    if not hasattr(html, 'escape'):
-        html.escape = DummyCGI.escape
+    # Also patch if feedparser imports it directly
+    sys.modules['cgi'].parse_header = parse_header
+    
+    print("✅ Applied cgi module fix for Python 3.13+")
+else:
+    print("ℹ️ Python version < 3.13, no cgi fix needed")
