@@ -18,8 +18,10 @@ import logging
 import json
 import hashlib
 import requests
-from urllib.parse import urlparse, quote, unquote
+from urllib.parse import urlparse, quote, unquote, urljoin
 import urllib3
+from bs4 import BeautifulSoup
+import html
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Fix Unicode encoding
@@ -44,13 +46,11 @@ class FlaskConfig:
     ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin123')
     
-    # Adsense IDs - UPDATED FOR MONETIZATION
-    ADSENSE_ID = 'ca-pub-9621668436424790'
-    ADSENSE_SLOT_HOME = '1234567890'
-    ADSENSE_SLOT_ARTICLE = '0987654321'
-    ADSENSE_SLOT_SIDEBAR = '1122334455'
+    # Google AdSense Auto Ads
+    ADSENSE_ENABLED = True
+    ADSENSE_PUBLISHER_ID = 'ca-pub-9621668436424790'
     
-    # Google Analytics - UPDATED
+    # Google Analytics
     GOOGLE_ANALYTICS_ID = 'G-9LWJJPQ5LK'
     
     # Contact Info
@@ -60,13 +60,8 @@ class FlaskConfig:
     SITE_URL = os.environ.get('SITE_URL', 'https://mzansi-insights.onrender.com')
     
     # Content Update
-    UPDATE_INTERVAL_MINUTES = int(os.environ.get('UPDATE_INTERVAL_MINUTES', '30'))
-    MAX_ARTICLES_PER_SOURCE = 15
-    
-    # Monetization Settings
-    ENABLE_ADS = True
-    ENABLE_ANALYTICS = True
-    ADSENSE_CLIENT = 'ca-pub-9621668436424790'
+    UPDATE_INTERVAL_MINUTES = 60  # Fetch every 60 minutes
+    MAX_ARTICLES_PER_SOURCE = 20  # Fetch up to 20 articles per source
     
     # Debug settings
     DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
@@ -76,7 +71,7 @@ class FlaskConfig:
 def get_db_path():
     """Get database path with Render persistence"""
     if os.environ.get('RENDER'):
-        # Render persistent volume - FIXED PATH
+        # Render persistent volume
         data_dir = '/opt/render/project/src/data'
         if not os.path.exists(data_dir):
             os.makedirs(data_dir, exist_ok=True)
@@ -130,7 +125,7 @@ def setup_database():
             color TEXT
         )''')
         
-        # Posts table - IMPROVED with more fields
+        # Posts table - SIMPLIFIED VERSION
         c.execute('''CREATE TABLE IF NOT EXISTS posts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
@@ -138,12 +133,12 @@ def setup_database():
             content TEXT NOT NULL,
             excerpt TEXT,
             image_url TEXT,
-            source_url TEXT,
+            source_url TEXT NOT NULL,
             category_id INTEGER,
             category TEXT DEFAULT 'news',
             author TEXT DEFAULT 'Mzansi Insights',
             views INTEGER DEFAULT 0,
-            source_name TEXT,
+            source_name TEXT NOT NULL,
             is_published BOOLEAN DEFAULT 1,
             pub_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -151,22 +146,12 @@ def setup_database():
             FOREIGN KEY (category_id) REFERENCES categories(id)
         )''')
         
-        # Monetization tracking table
-        c.execute('''CREATE TABLE IF NOT EXISTS monetization_stats (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            date DATE DEFAULT CURRENT_DATE,
-            page_views INTEGER DEFAULT 0,
-            ad_clicks INTEGER DEFAULT 0,
-            revenue_estimate REAL DEFAULT 0.0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )''')
-        
-        # Indexes
+        # Create index for faster lookups
         c.execute('CREATE INDEX IF NOT EXISTS idx_posts_slug ON posts(slug)')
         c.execute('CREATE INDEX IF NOT EXISTS idx_posts_category ON posts(category_id)')
-        c.execute('CREATE INDEX IF NOT EXISTS idx_posts_pub_date ON posts(pub_date DESC)')
-        c.execute('CREATE INDEX IF NOT EXISTS idx_posts_created ON posts(created_at DESC)')
-        c.execute('CREATE INDEX IF NOT EXISTS idx_posts_source ON posts(source_name)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at DESC)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_posts_source_url ON posts(source_url)')
+        c.execute('CREATE INDEX IF NOT EXISTS idx_posts_source_name ON posts(source_name)')
         
         # Create admin user if not exists
         c.execute("SELECT COUNT(*) FROM users WHERE username = ?", (FlaskConfig.ADMIN_USERNAME,))
@@ -198,66 +183,6 @@ def setup_database():
                          (name, slug, desc, icon, color))
                 logger.info(f"✅ Category created: {name}")
         
-        # Check if we need MORE sample posts
-        c.execute("SELECT COUNT(*) FROM posts")
-        post_count = c.fetchone()[0]
-        
-        if post_count < 20:  # If less than 20 posts, add samples
-            logger.info(f"📝 Adding sample posts... (Current: {post_count})")
-            sample_posts = [
-                ("Breaking: Major Economic Announcement Expected Today", 
-                 "The South African government is set to make a major economic announcement this afternoon that could impact markets and business sectors across the country. Analysts predict significant changes to fiscal policy.", 
-                 "news", "News24", "https://images.unsplash.com/photo-1588681664899-f142ff2dc9b1?w=800", "https://www.news24.com/fin24/economy/breaking-major-economic-announcement-expected-today"),
-                ("Tech Giant Announces 1000 New Jobs in Cape Town Expansion", 
-                 "A major technology company is expanding its South African operations with a new R&D center in Cape Town, creating over 1000 new high-tech jobs in software development and AI research.", 
-                 "business", "BusinessTech", "https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=800", "https://businesstech.co.za/news/business/12345/tech-giant-announces-1000-new-jobs"),
-                ("Springboks Prepare for Championship Defense with New Coach", 
-                 "The national rugby team begins intensive training for the upcoming championship season with new coaching strategies and player selections aimed at defending their title successfully.", 
-                 "sports", "Sport24", "https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800", "https://www.sport24.co.za/rugby/springboks/springboks-prepare-for-championship-defense"),
-                ("New SASSA Grant Applications Open for Students Nationwide", 
-                 "Applications for the 2024 student grant program are now open with increased funding amounts and expanded eligibility criteria for South African students in need of financial assistance.", 
-                 "grants", "IOL", "https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800", "https://www.iol.co.za/news/south-africa/new-sassa-grant-applications-open"),
-                ("Government Announces R500 Billion Infrastructure Projects", 
-                 "Billions allocated for new infrastructure development including roads, schools, and hospitals across multiple provinces to boost economic growth and create thousands of jobs.", 
-                 "government", "TimesLive", "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800", "https://www.timeslive.co.za/news/south-africa/government-announces-r500-billion-infrastructure"),
-                ("Stock Market Hits Record High as Economy Shows Recovery", 
-                 "The Johannesburg Stock Exchange reached new heights today as economic indicators show strong recovery signals across multiple sectors including mining and manufacturing.", 
-                 "business", "Moneyweb", "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?w=800", "https://www.moneyweb.co.za/moneyweb-economic-indicators/stock-market-hits-record-high"),
-                ("New Tech Hub Launched in Sandton to Boost Innovation", 
-                 "A state-of-the-art technology hub has been launched in Sandton aimed at fostering innovation and supporting tech startups with funding and mentorship programs.", 
-                 "technology", "TechCentral", "https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800", "https://techcentral.co.za/new-tech-hub-launched-in-sandton"),
-                ("Local Film Wins International Award at Cannes Festival", 
-                 "A South African-produced film has won top honors at the Cannes Film Festival, bringing international recognition to the country's growing entertainment industry.", 
-                 "entertainment", "Daily Maverick", "https://images.unsplash.com/photo-1489599809516-9827b6d1cf13?w=800", "https://www.dailymaverick.co.za/article/local-film-wins-international-award"),
-                ("Healthcare System to Receive Major Funding Boost", 
-                 "The national healthcare system is set to receive significant additional funding to improve facilities and services across all provinces, with focus on rural areas.", 
-                 "health", "News24", "https://images.unsplash.com/photo-1576091160399-112ba8d25d1f?w=800", "https://www.news24.com/news24/southafrica/news/healthcare-system-to-receive-major-funding"),
-                ("Education Department Announces New Digital Learning Initiative", 
-                 "A new digital learning program will be rolled out across schools nationwide to improve access to quality education resources and bridge the digital divide.", 
-                 "education", "IOL", "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=800", "https://www.iol.co.za/news/education/new-digital-learning-initiative-announced"),
-            ]
-            
-            for title, content, category, source, image, source_url in sample_posts:
-                slug_base = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
-                slug = f"{slug_base[:80]}-{hashlib.md5(title.encode()).hexdigest()[:6]}"
-                excerpt = content[:180] + '...' if len(content) > 180 else content
-                
-                c.execute("SELECT id FROM categories WHERE slug = ?", (category,))
-                category_row = c.fetchone()
-                category_id = category_row[0] if category_row else 1
-                
-                # Check if already exists
-                c.execute("SELECT id FROM posts WHERE slug = ?", (slug,))
-                if c.fetchone() is None:
-                    c.execute('''INSERT INTO posts 
-                        (title, slug, content, excerpt, image_url, source_url, 
-                         category_id, category, source_name, views, is_published, pub_date)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now', '-' || ? || ' days'))''',
-                        (title, slug, content, excerpt, image, source_url, 
-                         category_id, category, source, random.randint(50, 500), random.randint(0, 30)))
-            
-            logger.info(f"✅ Added {len(sample_posts)} sample posts")
-        
         conn.commit()
         conn.close()
         
@@ -280,110 +205,123 @@ class ContentFetcher:
         self.last_fetch_time = None
         self.last_fetch_count = 0
         
-        # News Sources with working RSS feeds
+        # WORKING South African News Sources
         self.NEWS_SOURCES = [
             {
-                'name': 'News24', 
-                'url': 'https://www.news24.com/feed', 
-                'category': 'news', 
-                'color': '#4361ee', 
+                'name': 'SABC News',
+                'url': 'https://www.sabcnews.com/sabcnews/feed/',
+                'category': 'news',
+                'color': '#4361ee',
                 'icon': 'newspaper',
                 'enabled': True,
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'base_url': 'https://www.sabcnews.com'
             },
             {
-                'name': 'TimesLive', 
-                'url': 'https://www.timeslive.co.za/feed/', 
-                'category': 'news', 
-                'color': '#7209b7', 
-                'icon': 'newspaper',
+                'name': 'SA Government News',
+                'url': 'https://www.gov.za/feed',
+                'category': 'government',
+                'color': '#2c3e50',
+                'icon': 'landmark',
                 'enabled': True,
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'base_url': 'https://www.gov.za'
             },
             {
-                'name': 'IOL', 
-                'url': 'https://www.iol.co.za/rss', 
-                'category': 'news', 
-                'color': '#e63946', 
-                'icon': 'newspaper',
-                'enabled': True,
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            },
-            {
-                'name': 'BusinessTech', 
-                'url': 'https://businesstech.co.za/news/feed/', 
-                'category': 'business', 
-                'color': '#3742fa', 
-                'icon': 'laptop-code',
-                'enabled': True,
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            },
-            {
-                'name': 'Daily Maverick', 
-                'url': 'https://www.dailymaverick.co.za/feed/', 
-                'category': 'news', 
-                'color': '#f77f00', 
-                'icon': 'newspaper',
-                'enabled': True,
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            },
-            {
-                'name': 'MyBroadband', 
-                'url': 'https://mybroadband.co.za/news/feed', 
-                'category': 'technology', 
-                'color': '#9b59b6', 
+                'name': 'MyBroadband',
+                'url': 'https://mybroadband.co.za/news/feed',
+                'category': 'technology',
+                'color': '#9b59b6',
                 'icon': 'wifi',
                 'enabled': True,
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'base_url': 'https://mybroadband.co.za'
             },
             {
-                'name': 'Sport24', 
-                'url': 'https://www.sport24.co.za/feed', 
-                'category': 'sports', 
-                'color': '#2ecc71', 
-                'icon': 'running',
+                'name': 'BusinessTech',
+                'url': 'https://businesstech.co.za/news/feed/',
+                'category': 'business',
+                'color': '#3742fa',
+                'icon': 'laptop-code',
                 'enabled': True,
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'base_url': 'https://businesstech.co.za'
             },
             {
-                'name': 'The Citizen', 
-                'url': 'https://www.citizen.co.za/feed/', 
-                'category': 'news', 
-                'color': '#d62828', 
+                'name': 'TechCentral',
+                'url': 'https://techcentral.co.za/feed/',
+                'category': 'technology',
+                'color': '#3498db',
+                'icon': 'laptop',
+                'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'base_url': 'https://techcentral.co.za'
+            },
+            {
+                'name': 'Moneyweb',
+                'url': 'https://www.moneyweb.co.za/feed/',
+                'category': 'business',
+                'color': '#06d6a0',
+                'icon': 'money-bill-wave',
+                'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'base_url': 'https://www.moneyweb.co.za'
+            },
+            {
+                'name': 'The Citizen',
+                'url': 'https://citizen.co.za/feed/',
+                'category': 'news',
+                'color': '#d62828',
                 'icon': 'newspaper',
                 'enabled': True,
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'base_url': 'https://citizen.co.za'
             },
         ]
     
-    def fetch_feed_with_requests(self, source):
-        """Fetch RSS feed using requests library"""
+    def fetch_feed_with_proxy(self, source):
+        """Fetch RSS feed with proper headers and error handling"""
         try:
             headers = {
                 'User-Agent': source.get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'),
-                'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+                'Accept': 'application/xml, text/xml, */*',
                 'Accept-Language': 'en-US,en;q=0.9',
-                'Referer': 'https://www.google.com/',
+                'Accept-Encoding': 'gzip, deflate',
+                'Connection': 'keep-alive',
+                'Cache-Control': 'max-age=0'
             }
             
             # Try with requests first
-            response = requests.get(source['url'], headers=headers, timeout=15, verify=False)
+            response = requests.get(
+                source['url'],
+                headers=headers,
+                timeout=10,
+                verify=False,
+                allow_redirects=True
+            )
             response.raise_for_status()
             
             # Parse the feed
             feed = feedparser.parse(response.content)
             
-            if feed.bozo:
+            if feed.bozo and feed.bozo_exception:
                 logger.warning(f"Feed parse warning for {source['name']}: {feed.bozo_exception}")
+                # Try parsing with different encoding
+                try:
+                    feed = feedparser.parse(response.text)
+                except:
+                    pass
             
             return feed
             
         except requests.exceptions.RequestException as e:
-            logger.warning(f"Requests failed for {source['name']}: {e}")
-            # Fallback to direct feedparser
+            logger.error(f"Requests failed for {source['name']}: {e}")
+            # Fallback to direct feedparser with custom headers
             try:
                 feed = feedparser.parse(source['url'], request_headers=headers)
-                return feed
+                if feed.entries:
+                    logger.info(f"Feedparser fallback worked for {source['name']}")
+                    return feed
             except Exception as e2:
                 logger.error(f"Feedparser also failed for {source['name']}: {e2}")
                 return None
@@ -391,92 +329,139 @@ class ContentFetcher:
             logger.error(f"Unexpected error fetching {source['name']}: {e}")
             return None
     
-    def extract_image(self, entry, category='news'):
+    def extract_image_from_entry(self, entry, source_base_url):
         """Extract image URL from entry"""
         try:
-            # Check media content
+            # Strategy 1: Check media content
             if hasattr(entry, 'media_content') and entry.media_content:
                 for media in entry.media_content:
                     if media.get('type', '').startswith('image/'):
-                        img = media.get('url', '')
-                        if img and img.startswith('http'):
-                            return img
+                        img_url = media.get('url', '')
+                        if img_url and img_url.startswith('http'):
+                            return img_url
             
-            # Check media thumbnail
+            # Strategy 2: Check media thumbnail
             if hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
                 for thumb in entry.media_thumbnail:
-                    img = thumb.get('url', '')
-                    if img and img.startswith('http'):
-                        return img
+                    img_url = thumb.get('url', '')
+                    if img_url and img_url.startswith('http'):
+                        return img_url
             
-            # Check enclosures
-            if hasattr(entry, 'enclosures') and entry.enclosures:
-                for enc in entry.enclosures:
-                    if enc.get('type', '').startswith('image/'):
-                        img = enc.get('href', '')
-                        if img and img.startswith('http'):
-                            return img
-            
-            # Extract from content
-            content = entry.get('summary', entry.get('description', ''))
-            if content:
-                img_match = re.search(r'<img[^>]+src="([^">]+)"', content)
-                if img_match:
-                    img = img_match.group(1)
-                    if img and img.startswith('http'):
-                        return img
-            
-            # Extract from links
-            if hasattr(entry, 'links') and entry.links:
-                for link in entry.links:
-                    if link.get('type', '').startswith('image/'):
-                        img = link.get('href', '')
-                        if img and img.startswith('http'):
-                            return img
+            # Strategy 3: Extract from content/summary
+            content_fields = ['content', 'summary', 'description']
+            for field in content_fields:
+                if hasattr(entry, field):
+                    content = getattr(entry, field)
+                    if isinstance(content, list):
+                        content = content[0].value if content else ''
+                    
+                    if content:
+                        # Try to find img tag
+                        img_match = re.search(r'<img[^>]+src="([^">]+)"', content, re.IGNORECASE)
+                        if img_match:
+                            img_url = img_match.group(1)
+                            if img_url and img_url.startswith('http'):
+                                return img_url
+                            elif img_url and img_url.startswith('/'):
+                                # Relative URL, make absolute
+                                return urljoin(source_base_url, img_url)
                             
         except Exception as e:
             logger.debug(f"Image extraction error: {e}")
         
-        # Fallback images
+        # Return fallback image
+        return self.get_fallback_image(source.get('category', 'news'))
+    
+    def get_fallback_image(self, category):
+        """Get fallback image based on category"""
         fallback_images = {
             'news': 'https://images.unsplash.com/photo-1588681664899-f142ff2dc9b1?w=800&auto=format&fit=crop',
             'business': 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=800&auto=format&fit=crop',
-            'sports': 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800&auto=format&fit=crop',
             'technology': 'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=800&auto=format&fit=crop',
+            'sports': 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800&auto=format&fit=crop',
             'entertainment': 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&auto=format&fit=crop',
-            'grants': 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800&auto=format&fit=crop',
-            'government': 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&auto=format&fit=crop',
-            'health': 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1f?w=800&auto=format&fit=crop',
-            'education': 'https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=800&auto=format&fit=crop',
-            'jobs': 'https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=800&auto=format&fit=crop',
+            'government': 'https://images.unsplash.com/photo-1551135049-8a33b2fb2f5a?w=800&auto=format&fit=crop',
         }
-        
         return fallback_images.get(category, fallback_images['news'])
     
-    def clean_content(self, text, max_length=1000):
-        """Clean HTML content"""
-        if not text:
+    def clean_html_content(self, html_content, max_length=1500):
+        """Clean HTML content to plain text"""
+        if not html_content:
             return ""
         
-        # Remove HTML tags
-        text = re.sub(r'<[^>]+>', '', text)
+        try:
+            # Parse HTML with BeautifulSoup
+            soup = BeautifulSoup(html_content, 'html.parser')
+            
+            # Remove script and style elements
+            for script in soup(["script", "style", "iframe", "nav", "header", "footer"]):
+                script.decompose()
+            
+            # Get text
+            text = soup.get_text()
+            
+            # Clean up whitespace
+            lines = (line.strip() for line in text.splitlines())
+            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+            text = ' '.join(chunk for chunk in chunks if chunk)
+            
+            # Decode HTML entities
+            text = html.unescape(text)
+            
+            # Truncate if too long
+            if len(text) > max_length:
+                text = text[:max_length] + '...'
+            
+            return text
+            
+        except Exception as e:
+            logger.debug(f"HTML cleaning error: {e}")
+            # Fallback to simple regex cleaning
+            text = re.sub(r'<[^>]+>', '', html_content)
+            text = html.unescape(text)
+            text = ' '.join(text.split())
+            return text[:max_length]
+    
+    def get_entry_content(self, entry):
+        """Get content from entry with multiple fallbacks"""
+        content_fields = [
+            ('content', lambda x: x[0].value if isinstance(x, list) and len(x) > 0 else str(x)),
+            ('summary_detail', lambda x: x.value if hasattr(x, 'value') else str(x)),
+            ('summary', str),
+            ('description', str),
+            ('title', str)
+        ]
         
-        # Decode HTML entities
-        replacements = {
-            '&nbsp;': ' ', '&amp;': '&', '&lt;': '<', '&gt;': '>',
-            '&quot;': '"', '&#39;': "'", '&rsquo;': "'", '&lsquo;': "'",
-            '&rdquo;': '"', '&ldquo;': '"', '&hellip;': '...',
-            '&mdash;': '—', '&ndash;': '–', '&copy;': '(c)',
-            '&reg;': '(r)', '&trade;': '(tm)',
-        }
+        for field, converter in content_fields:
+            if hasattr(entry, field):
+                try:
+                    value = getattr(entry, field)
+                    if value:
+                        content = converter(value)
+                        if content and len(str(content).strip()) > 50:
+                            return str(content)
+                except:
+                    continue
         
-        for entity, replacement in replacements.items():
-            text = text.replace(entity, replacement)
+        return entry.get('title', 'No content available')
+    
+    def get_entry_excerpt(self, content, max_length=200):
+        """Create excerpt from content"""
+        if not content:
+            return ""
         
-        # Clean whitespace
-        text = ' '.join(text.split())
+        # Clean the content
+        cleaned = self.clean_html_content(content, max_length * 2)
         
-        return text[:max_length]
+        # Take first max_length characters
+        if len(cleaned) > max_length:
+            truncated = cleaned[:max_length]
+            last_period = truncated.rfind('. ')
+            if last_period > max_length * 0.5:
+                return truncated[:last_period + 1] + '..'
+            return truncated + '...'
+        
+        return cleaned
     
     def generate_slug(self, title, source_name):
         """Generate unique slug from title"""
@@ -485,74 +470,100 @@ class ContentFetcher:
         clean_title = re.sub(r'\s+', '-', clean_title.strip())
         
         # Add source and hash for uniqueness
-        source_hash = hashlib.md5(source_name.encode()).hexdigest()[:4]
-        title_hash = hashlib.md5(title.encode()).hexdigest()[:4]
+        source_hash = hashlib.md5(source_name.encode()).hexdigest()[:6]
+        title_hash = hashlib.md5(title.encode()).hexdigest()[:6]
         
-        slug = f"{clean_title[:70]}-{source_hash}-{title_hash}"
+        slug = f"{clean_title[:60]}-{source_hash}-{title_hash}"
         return slug
     
+    def get_publication_date(self, entry):
+        """Get publication date from entry"""
+        date_fields = ['published_parsed', 'updated_parsed', 'created_parsed']
+        
+        for field in date_fields:
+            if hasattr(entry, field) and getattr(entry, field):
+                try:
+                    date_tuple = getattr(entry, field)
+                    return datetime(*date_tuple[:6])
+                except:
+                    continue
+        
+        # If no date found, use current time
+        return datetime.now()
+    
     def fetch_and_save(self):
-        """Fetch and save articles from all sources - AGGRESSIVE MODE"""
+        """Fetch and save articles from sources"""
         if self.is_fetching:
             logger.info("Already fetching, skipping...")
             return 0
         
         self.is_fetching = True
         total_saved = 0
+        start_time = time.time()
         
         try:
-            logger.info("⚡⚡⚡ STARTING AGGRESSIVE CONTENT FETCH...")
+            logger.info("=" * 60)
+            logger.info("STARTING CONTENT FETCH...")
+            logger.info("=" * 60)
+            
             conn = get_db_connection()
             
             for source in [s for s in self.NEWS_SOURCES if s.get('enabled', True)]:
                 try:
-                    logger.info(f"📡📡📡 Fetching from {source['name']}...")
-                    feed = self.fetch_feed_with_requests(source)
+                    logger.info(f"📡 Fetching from {source['name']}...")
+                    
+                    # Fetch the feed
+                    feed = self.fetch_feed_with_proxy(source)
                     
                     if not feed or not feed.entries:
                         logger.warning(f"  ❌ No entries from {source['name']}")
                         continue
                     
-                    source_saved = 0
-                    articles_processed = 0
+                    logger.info(f"  📊 Found {len(feed.entries)} entries")
                     
-                    # Process MORE articles per source
-                    for entry in feed.entries[:FlaskConfig.MAX_ARTICLES_PER_SOURCE]:
+                    source_saved = 0
+                    
+                    # Process articles
+                    max_articles = min(len(feed.entries), FlaskConfig.MAX_ARTICLES_PER_SOURCE)
+                    
+                    for entry in feed.entries[:max_articles]:
                         try:
-                            articles_processed += 1
+                            # Get title
                             title = entry.get('title', '').strip()
                             if not title or len(title) < 10:
                                 continue
+                            
+                            # Get source URL
+                            source_url = entry.get('link', '').strip()
+                            if not source_url or not source_url.startswith('http'):
+                                # Create placeholder URL
+                                slug = self.generate_slug(title, source['name'])
+                                source_url = f"https://{source['name'].lower().replace(' ', '')}.co.za/article/{slug}"
                             
                             # Generate unique slug
                             slug = self.generate_slug(title, source['name'])
                             
                             # Check if article already exists
                             existing = conn.execute(
-                                "SELECT id FROM posts WHERE slug = ? OR title = ?", 
-                                (slug, title[:200])
+                                "SELECT id FROM posts WHERE slug = ? OR source_url = ?", 
+                                (slug, source_url)
                             ).fetchone()
                             
                             if existing:
                                 continue
                             
-                            # Get content - use description if available
-                            raw_content = entry.get('summary', entry.get('description', title))
-                            content = self.clean_content(raw_content, 1500)
+                            # Get content
+                            raw_content = self.get_entry_content(entry)
+                            content = self.clean_html_content(raw_content, 2000)
                             
-                            if not content or len(content) < 50:
-                                content = title
+                            if not content or len(content) < 100:
+                                content = title + ". Read the full article on " + source['name']
                             
-                            excerpt = content[:250] + '...' if len(content) > 250 else content
+                            # Create excerpt
+                            excerpt = self.get_entry_excerpt(content, 250)
                             
-                            # Get image - FIXED
-                            image_url = self.extract_image(entry, source['category'])
-                            
-                            # Get source URL - FIXED to always have a real URL
-                            source_url = entry.get('link', '#')
-                            if source_url == '#' or not source_url.startswith('http'):
-                                # Generate a plausible URL if missing
-                                source_url = f"https://{source['name'].lower().replace(' ', '')}.co.za/news/{slug}"
+                            # Get image
+                            image_url = self.extract_image_from_entry(entry, source.get('base_url', source_url))
                             
                             # Get category ID
                             cat_row = conn.execute(
@@ -562,17 +573,13 @@ class ContentFetcher:
                             category_id = cat_row[0] if cat_row else 1
                             
                             # Get publication date
-                            pub_date = datetime.now()
-                            if hasattr(entry, 'published_parsed') and entry.published_parsed:
-                                try:
-                                    pub_date = datetime(*entry.published_parsed[:6])
-                                except:
-                                    pass
+                            pub_date = self.get_publication_date(entry)
                             
                             # Insert the article
                             conn.execute('''INSERT INTO posts 
                                 (title, slug, content, excerpt, image_url, source_url, 
-                                 category_id, category, source_name, views, is_published, pub_date)
+                                 category_id, category, source_name, views, is_published, 
+                                 pub_date)
                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)''',
                                 (title, slug, content, excerpt, image_url, source_url,
                                  category_id, source['category'], source['name'], 
@@ -581,23 +588,22 @@ class ContentFetcher:
                             source_saved += 1
                             total_saved += 1
                             
-                            if source_saved <= 5:  # Log first 5
-                                logger.info(f"  ✅ Saved: {title[:70]}...")
+                            if source_saved <= 3:
+                                logger.info(f"    ✅ Saved: {title[:70]}...")
                             
-                        except sqlite3.IntegrityError as e:
-                            # Duplicate slug, skip
+                        except sqlite3.IntegrityError:
                             continue
                         except Exception as e:
                             logger.debug(f"    Article error: {str(e)[:100]}")
                             continue
                     
                     if source_saved > 0:
-                        logger.info(f"🎯 {source['name']}: {source_saved}/{articles_processed} new articles")
+                        logger.info(f"✅ {source['name']}: Saved {source_saved} new articles")
                     else:
-                        logger.info(f"ℹ️ {source['name']}: {articles_processed} processed, 0 new")
+                        logger.info(f"ℹ️ {source['name']}: No new articles")
                     
                 except Exception as e:
-                    logger.error(f"🔥 Source {source['name']} failed: {str(e)[:100]}")
+                    logger.error(f"❌ Source {source['name']} failed: {str(e)[:100]}")
                     continue
             
             conn.commit()
@@ -606,15 +612,21 @@ class ContentFetcher:
             self.last_fetch_time = datetime.now()
             self.last_fetch_count = total_saved
             
+            elapsed = time.time() - start_time
+            
+            logger.info("=" * 60)
             if total_saved > 0:
-                logger.info(f"🎉🎉🎉 FETCH COMPLETE: {total_saved} NEW ARTICLES ADDED!")
+                logger.info(f"🎉 FETCH COMPLETE!")
+                logger.info(f"✅ Total new articles: {total_saved}")
+                logger.info(f"⏱️  Time taken: {elapsed:.2f} seconds")
             else:
                 logger.info("✅ Fetch complete: No new articles found")
+            logger.info("=" * 60)
             
             return total_saved
             
         except Exception as e:
-            logger.error(f"❌❌❌ MAJOR FETCH ERROR: {e}", exc_info=True)
+            logger.error(f"❌ FETCH ERROR: {e}", exc_info=True)
             return 0
         finally:
             self.is_fetching = False
@@ -624,7 +636,7 @@ app = Flask(__name__)
 app.config.from_object(FlaskConfig)
 
 print("=" * 60)
-print("🇿🇦 MZANSI INSIGHTS - ULTIMATE DEPLOYMENT VERSION")
+print("🇿🇦 MZANSI INSIGHTS - NEWS AGGREGATOR")
 print("=" * 60)
 
 # Setup database
@@ -633,10 +645,11 @@ db_setup_success = setup_database()
 # Initialize fetcher
 fetcher = ContentFetcher()
 
-# FORCE IMMEDIATE FETCH ON STARTUP
-print("🚀🚀🚀 FORCING AGGRESSIVE FETCH ON STARTUP...")
+# Test fetch on startup
+print("🚀 Testing fetch on startup...")
 initial_fetched = fetcher.fetch_and_save()
 print(f"✅ Initial fetch: {initial_fetched} articles")
+print(f"⏰ Next fetch in: {FlaskConfig.UPDATE_INTERVAL_MINUTES} minutes")
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -665,7 +678,10 @@ def get_time_ago(date_str):
             return "Recently"
         
         if isinstance(date_str, str):
-            post_date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+            try:
+                post_date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+            except:
+                post_date = datetime.strptime(date_str, '%Y-%m-%d')
         elif isinstance(date_str, datetime):
             post_date = date_str
         else:
@@ -692,23 +708,18 @@ def get_time_ago(date_str):
         return "Recently"
 
 def prepare_post(post_row):
-    """Prepare post for template with FULL source URLs"""
+    """Prepare post for template"""
     if not post_row:
         return None
     
     post = dict(post_row)
     post['formatted_date'] = get_time_ago(post.get('pub_date') or post.get('created_at', ''))
     
-    # FIX source_url to always be clickable
+    # Ensure source_url is valid
     if not post.get('source_url') or post['source_url'] == '#':
-        # Generate a plausible URL if missing
-        source_name = post.get('source_name', '').lower().replace(' ', '')
+        source_name = post.get('source_name', '').lower().replace(' ', '-')
         slug = post.get('slug', '')
         post['source_url'] = f"https://www.{source_name}.co.za/news/{slug}"
-    
-    # Ensure source_url is properly formatted
-    if post['source_url'] and not post['source_url'].startswith('http'):
-        post['source_url'] = 'https://' + post['source_url']
     
     # Get category info
     try:
@@ -764,125 +775,131 @@ def get_categories_with_counts():
     except:
         return []
 
-# ============= MONETIZATION FUNCTIONS =============
-def track_page_view():
-    """Track page view for monetization stats"""
-    if not FlaskConfig.ENABLE_ADS and not FlaskConfig.ENABLE_ANALYTICS:
-        return
-    
-    try:
-        conn = get_db_connection()
-        today = datetime.now().date()
-        
-        # Check if record exists for today
-        existing = conn.execute(
-            "SELECT id FROM monetization_stats WHERE date = ?", 
-            (today,)
-        ).fetchone()
-        
-        if existing:
-            # Update existing record
-            conn.execute(
-                "UPDATE monetization_stats SET page_views = page_views + 1 WHERE date = ?",
-                (today,)
-            )
-        else:
-            # Create new record
-            conn.execute(
-                "INSERT INTO monetization_stats (date, page_views) VALUES (?, 1)",
-                (today,)
-            )
-        
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        logger.debug(f"Page view tracking error: {e}")
-
-def get_monetization_stats(days=7):
-    """Get monetization statistics"""
-    try:
-        conn = get_db_connection()
-        stats = conn.execute('''
-            SELECT date, SUM(page_views) as total_views, 
-                   SUM(ad_clicks) as total_clicks,
-                   SUM(revenue_estimate) as total_revenue
-            FROM monetization_stats 
-            WHERE date >= date('now', ?)
-            GROUP BY date
-            ORDER BY date DESC
-        ''', (f'-{days} days',)).fetchall()
-        
-        conn.close()
-        return [dict(s) for s in stats]
-    except:
-        return []
-
 # ============= ALL ROUTES =============
 @app.route('/')
 def index():
-    """Home page - ALWAYS shows data"""
-    # Track page view for monetization
-    track_page_view()
+    """Home page"""
+    posts = []
+    trending_posts = []
+    categories = []
+    sources_list = []
+    featured_post = None
     
     try:
         conn = get_db_connection()
         
+        # Get categories first
+        try:
+            categories = get_categories_with_counts()
+        except Exception as e:
+            logger.error(f"Categories error: {e}")
+            categories = []
+        
         # Featured/Latest post
-        featured_raw = conn.execute(
-            "SELECT * FROM posts WHERE is_published = 1 ORDER BY pub_date DESC LIMIT 1"
-        ).fetchone()
-        featured = prepare_post(featured_raw) if featured_raw else None
+        try:
+            featured_raw = conn.execute(
+                "SELECT * FROM posts WHERE is_published = 1 ORDER BY created_at DESC LIMIT 1"
+            ).fetchone()
+            featured_post = prepare_post(featured_raw) if featured_raw else None
+        except Exception as e:
+            logger.error(f"Featured post error: {e}")
+            featured_post = None
         
-        # Latest posts (skip featured if exists)
-        if featured:
-            posts_raw = conn.execute(
-                "SELECT * FROM posts WHERE is_published = 1 AND id != ? ORDER BY pub_date DESC LIMIT 12",
-                (featured['id'],)
-            ).fetchall()
-        else:
-            posts_raw = conn.execute(
-                "SELECT * FROM posts WHERE is_published = 1 ORDER BY pub_date DESC LIMIT 12"
-            ).fetchall()
-        
-        posts = [prepare_post(row) for row in posts_raw]
+        # Latest posts
+        try:
+            if featured_post:
+                posts_raw = conn.execute(
+                    "SELECT * FROM posts WHERE is_published = 1 AND id != ? ORDER BY created_at DESC LIMIT 12",
+                    (featured_post.get('id', 0),)
+                ).fetchall()
+            else:
+                posts_raw = conn.execute(
+                    "SELECT * FROM posts WHERE is_published = 1 ORDER BY created_at DESC LIMIT 12"
+                ).fetchall()
+            
+            posts = [prepare_post(row) for row in posts_raw]
+        except Exception as e:
+            logger.error(f"Posts error: {e}")
+            posts = []
         
         # Trending posts
-        trending_raw = conn.execute(
-            "SELECT * FROM posts WHERE is_published = 1 ORDER BY views DESC LIMIT 6"
-        ).fetchall()
-        trending_posts = [prepare_post(row) for row in trending_raw]
+        try:
+            trending_raw = conn.execute(
+                "SELECT * FROM posts WHERE is_published = 1 ORDER BY views DESC LIMIT 6"
+            ).fetchall()
+            trending_posts = [prepare_post(row) for row in trending_raw]
+        except Exception as e:
+            logger.error(f"Trending posts error: {e}")
+            trending_posts = []
+        
+        # Get sources with counts
+        try:
+            sources_list = []
+            for source in fetcher.NEWS_SOURCES:
+                if source.get('enabled', True):
+                    count_row = conn.execute(
+                        "SELECT COUNT(*) FROM posts WHERE source_name = ? AND is_published = 1", 
+                        (source['name'],)
+                    ).fetchone()
+                    article_count = count_row[0] if count_row else 0
+                    
+                    sources_list.append({
+                        'name': source['name'],
+                        'url': source['url'],
+                        'category': source['category'],
+                        'color': source['color'],
+                        'icon': source['icon'],
+                        'article_count': article_count
+                    })
+        except Exception as e:
+            logger.error(f"Sources error: {e}")
+            sources_list = []
         
         conn.close()
         
-        return render_template('index.html',
-                             featured_post=featured,
-                             posts=posts,
-                             trending_posts=trending_posts,
-                             categories=get_categories_with_counts(),
-                             sources=fetcher.NEWS_SOURCES,
-                             config=FlaskConfig,
-                             now=datetime.now(),
-                             fetcher=fetcher)
-                             
     except Exception as e:
-        logger.error(f"Home error: {e}")
-        # Return with sample data
-        return render_template('index.html',
-                             featured_post=None,
-                             posts=[],
-                             trending_posts=[],
-                             categories=get_categories_with_counts(),
-                             sources=fetcher.NEWS_SOURCES,
-                             config=FlaskConfig,
-                             now=datetime.now(),
-                             fetcher=fetcher)
+        logger.error(f"Database connection error: {e}")
+        # Initialize empty lists if database fails
+        if not categories:
+            categories = []
+        if not sources_list:
+            sources_list = []
+        posts = []
+        trending_posts = []
+        featured_post = None
+    
+    # Create fallback sources list if empty
+    if not sources_list:
+        for source in fetcher.NEWS_SOURCES[:10]:
+            if source.get('enabled', True):
+                sources_list.append({
+                    'name': source['name'],
+                    'url': source['url'],
+                    'category': source['category'],
+                    'color': source['color'],
+                    'icon': source['icon'],
+                    'article_count': 0
+                })
+    
+    # Ensure we have categories
+    if not categories:
+        try:
+            categories = get_categories_with_counts()
+        except:
+            categories = []
+    
+    return render_template('index.html',
+                         featured_post=featured_post,
+                         posts=posts,
+                         trending_posts=trending_posts,
+                         sources=sources_list[:10],
+                         categories=categories,
+                         config=FlaskConfig,
+                         now=datetime.now())
 
 @app.route('/category/<category_slug>')
 def category_page(category_slug):
     """Category page"""
-    # Track page view for monetization
-    track_page_view()
-    
     try:
         conn = get_db_connection()
         
@@ -893,17 +910,13 @@ def category_page(category_slug):
         ).fetchone()
         
         if not category:
-            # Try to redirect or show 404
-            if category_slug in ['jobs', 'grants', 'health', 'education']:
-                # Redirect missing categories to news
-                return redirect('/category/news')
-            return render_template('404.html', config=FlaskConfig), 404
+            return redirect('/category/news')
         
         category = dict(category)
         
         # Get posts for this category
         posts_raw = conn.execute(
-            "SELECT * FROM posts WHERE category_id = ? AND is_published = 1 ORDER BY pub_date DESC LIMIT 50",
+            "SELECT * FROM posts WHERE category_id = ? AND is_published = 1 ORDER BY created_at DESC LIMIT 50",
             (category['id'],)
         ).fetchall()
         posts = [prepare_post(row) for row in posts_raw]
@@ -923,10 +936,7 @@ def category_page(category_slug):
 
 @app.route('/post/<slug>')
 def post_detail(slug):
-    """Post detail page - WITH WORKING SOURCE LINKS"""
-    # Track page view for monetization
-    track_page_view()
-    
+    """Post detail page"""
     try:
         conn = get_db_connection()
         
@@ -948,7 +958,7 @@ def post_detail(slug):
         
         # Get related posts
         related_raw = conn.execute(
-            "SELECT * FROM posts WHERE category_id = ? AND slug != ? AND is_published = 1 ORDER BY pub_date DESC LIMIT 4",
+            "SELECT * FROM posts WHERE category_id = ? AND slug != ? AND is_published = 1 ORDER BY created_at DESC LIMIT 4",
             (post['category_id'], slug)
         ).fetchall()
         related_posts = [prepare_post(row) for row in related_raw]
@@ -968,9 +978,6 @@ def post_detail(slug):
 @app.route('/search')
 def search():
     """Search page"""
-    # Track page view for monetization
-    track_page_view()
-    
     query = request.args.get('q', '').strip()
     
     try:
@@ -980,8 +987,8 @@ def search():
         if query and len(query) >= 2:
             search_term = f'%{query}%'
             posts_raw = conn.execute(
-                "SELECT * FROM posts WHERE (title LIKE ? OR content LIKE ?) AND is_published = 1 ORDER BY pub_date DESC LIMIT 30",
-                (search_term, search_term)
+                "SELECT * FROM posts WHERE (title LIKE ? OR content LIKE ? OR excerpt LIKE ?) AND is_published = 1 ORDER BY created_at DESC LIMIT 30",
+                (search_term, search_term, search_term)
             ).fetchall()
             posts = [prepare_post(row) for row in posts_raw]
         
@@ -1006,9 +1013,6 @@ def search():
 @app.route('/sources')
 def sources():
     """Sources page"""
-    # Track page view for monetization
-    track_page_view()
-    
     try:
         conn = get_db_connection()
         
@@ -1052,8 +1056,6 @@ def sources():
 # ============= STATIC PAGES =============
 @app.route('/about')
 def about():
-    """About page"""
-    track_page_view()
     return render_template('about.html',
                          categories=get_categories_with_counts(),
                          config=FlaskConfig,
@@ -1061,8 +1063,6 @@ def about():
 
 @app.route('/disclaimer')
 def disclaimer():
-    """Disclaimer page"""
-    track_page_view()
     return render_template('disclaimer.html',
                          categories=get_categories_with_counts(),
                          config=FlaskConfig,
@@ -1070,8 +1070,6 @@ def disclaimer():
 
 @app.route('/privacy')
 def privacy():
-    """Privacy page"""
-    track_page_view()
     return render_template('privacy.html',
                          categories=get_categories_with_counts(),
                          config=FlaskConfig,
@@ -1079,8 +1077,6 @@ def privacy():
 
 @app.route('/terms')
 def terms():
-    """Terms page"""
-    track_page_view()
     return render_template('terms.html',
                          categories=get_categories_with_counts(),
                          config=FlaskConfig,
@@ -1088,40 +1084,15 @@ def terms():
 
 @app.route('/contact')
 def contact():
-    """Contact page"""
-    track_page_view()
     return render_template('contact.html',
                          categories=get_categories_with_counts(),
                          config=FlaskConfig,
                          now=datetime.now())
 
-@app.route('/sitemap')
-def sitemap():
-    """Sitemap page"""
-    track_page_view()
-    try:
-        conn = get_db_connection()
-        posts = conn.execute(
-            "SELECT slug, title, pub_date FROM posts WHERE is_published = 1 ORDER BY pub_date DESC LIMIT 100"
-        ).fetchall()
-        conn.close()
-        
-        return render_template('sitemap.html',
-                             posts=posts,
-                             categories=get_categories_with_counts(),
-                             config=FlaskConfig,
-                             now=datetime.now())
-    except:
-        return render_template('sitemap.html',
-                             posts=[],
-                             categories=get_categories_with_counts(),
-                             config=FlaskConfig,
-                             now=datetime.now())
-
 # ============= API ENDPOINTS =============
 @app.route('/api/live-news')
 def live_news():
-    """Live news API for ticker - RETURNS REAL DATA"""
+    """Live news API for ticker"""
     try:
         conn = get_db_connection()
         posts_raw = conn.execute(
@@ -1129,7 +1100,7 @@ def live_news():
                FROM posts p 
                LEFT JOIN categories c ON p.category_id = c.id 
                WHERE p.is_published = 1 
-               ORDER BY p.pub_date DESC 
+               ORDER BY p.created_at DESC 
                LIMIT 10"""
         ).fetchall()
         conn.close()
@@ -1141,20 +1112,13 @@ def live_news():
             if len(title) > 80:
                 title = title[:77] + '...'
             
-            # Ensure source_url is valid
-            source_url = post_dict.get('source_url', '#')
-            if not source_url or source_url == '#':
-                source_name = post_dict.get('source_name', '').lower().replace(' ', '')
-                slug = post_dict.get('slug', '')
-                source_url = f"https://www.{source_name}.co.za/news/{slug}"
-            
             articles.append({
                 'id': post_dict['id'],
                 'title': title,
                 'category': post_dict.get('category_name', 'News'),
                 'color': post_dict.get('color', '#4361ee'),
-                'time_ago': get_time_ago(post_dict.get('pub_date', '')),
-                'source_url': source_url,
+                'time_ago': get_time_ago(post_dict.get('created_at', '')),
+                'source_url': post_dict.get('source_url', '#'),
                 'source_name': post_dict.get('source_name', 'Source')
             })
         
@@ -1162,8 +1126,7 @@ def live_news():
             'status': 'success', 
             'articles': articles,
             'count': len(articles),
-            'last_updated': datetime.now().strftime('%H:%M:%S'),
-            'total_posts': len(articles)
+            'last_updated': datetime.now().strftime('%H:%M:%S')
         })
         
     except Exception as e:
@@ -1176,7 +1139,7 @@ def live_news():
 
 @app.route('/api/fetch-now')
 def api_fetch_now():
-    """Manually trigger fetch - AGGRESSIVE"""
+    """Manually trigger fetch"""
     if fetcher.is_fetching:
         return jsonify({
             'status': 'already_fetching', 
@@ -1186,7 +1149,7 @@ def api_fetch_now():
     threading.Thread(target=fetcher.fetch_and_save, daemon=True).start()
     return jsonify({
         'status': 'started', 
-        'message': 'Aggressive content fetch started in background'
+        'message': 'Content fetch started in background'
     })
 
 @app.route('/api/stats')
@@ -1207,14 +1170,6 @@ def api_stats():
             "SELECT COUNT(*) FROM categories"
         ).fetchone()[0]
         
-        # Get monetization stats
-        monetization_stats = get_monetization_stats(7)
-        
-        # Get recent activity
-        recent_posts = conn.execute(
-            "SELECT title, pub_date FROM posts WHERE is_published = 1 ORDER BY pub_date DESC LIMIT 5"
-        ).fetchall()
-        
         conn.close()
         
         return jsonify({
@@ -1225,55 +1180,14 @@ def api_stats():
             'last_fetch': fetcher.last_fetch_time.isoformat() if fetcher.last_fetch_time else None,
             'last_fetch_count': fetcher.last_fetch_count,
             'is_fetching': fetcher.is_fetching,
-            'monetization_enabled': FlaskConfig.ENABLE_ADS,
-            'analytics_enabled': FlaskConfig.ENABLE_ANALYTICS,
-            'adsense_client': FlaskConfig.ADSENSE_CLIENT,
-            'google_analytics_id': FlaskConfig.GOOGLE_ANALYTICS_ID,
-            'monetization_stats': monetization_stats,
+            'next_fetch_in_minutes': FlaskConfig.UPDATE_INTERVAL_MINUTES,
             'status': 'online',
-            'time': datetime.now().strftime('%H:%M:%S'),
-            'recent_activity': [{'title': p[0][:50], 'time': get_time_ago(p[1])} for p in recent_posts]
+            'time': datetime.now().strftime('%H:%M:%S')
         })
         
     except Exception as e:
         return jsonify({
             'status': 'error', 
-            'error': str(e)
-        })
-
-@app.route('/api/monetization-stats')
-@login_required
-def monetization_stats():
-    """Get monetization statistics (admin only)"""
-    try:
-        days = request.args.get('days', 30, type=int)
-        stats = get_monetization_stats(days)
-        
-        # Calculate totals
-        total_views = sum(s['total_views'] or 0 for s in stats)
-        total_clicks = sum(s['total_clicks'] or 0 for s in stats)
-        total_revenue = sum(s['total_revenue'] or 0 for s in stats)
-        
-        return jsonify({
-            'status': 'success',
-            'stats': stats,
-            'totals': {
-                'views': total_views,
-                'clicks': total_clicks,
-                'revenue': total_revenue,
-                'ctr': (total_clicks / total_views * 100) if total_views > 0 else 0,
-                'rpm': (total_revenue / total_views * 1000) if total_views > 0 else 0
-            },
-            'config': {
-                'adsense_client': FlaskConfig.ADSENSE_CLIENT,
-                'analytics_id': FlaskConfig.GOOGLE_ANALYTICS_ID,
-                'enable_ads': FlaskConfig.ENABLE_ADS,
-                'enable_analytics': FlaskConfig.ENABLE_ANALYTICS
-            }
-        })
-    except Exception as e:
-        return jsonify({
-            'status': 'error',
             'error': str(e)
         })
 
@@ -1308,29 +1222,21 @@ def admin_dashboard():
         'published_posts': conn.execute("SELECT COUNT(*) FROM posts WHERE is_published = 1").fetchone()[0],
         'total_views': conn.execute("SELECT SUM(views) FROM posts").fetchone()[0] or 0,
         'categories': conn.execute("SELECT COUNT(*) FROM categories").fetchone()[0],
-        'sources': len(fetcher.NEWS_SOURCES),
+        'sources': len([s for s in fetcher.NEWS_SOURCES if s.get('enabled', True)]),
         'fetching_status': 'Active' if fetcher.is_fetching else 'Idle',
         'last_fetch': fetcher.last_fetch_time.strftime('%Y-%m-%d %H:%M:%S') if fetcher.last_fetch_time else 'Never',
         'last_fetch_count': fetcher.last_fetch_count,
-        'database_path': get_db_path(),
-        'monetization_enabled': FlaskConfig.ENABLE_ADS,
-        'analytics_enabled': FlaskConfig.ENABLE_ANALYTICS,
-        'adsense_client': FlaskConfig.ADSENSE_CLIENT,
-        'google_analytics_id': FlaskConfig.GOOGLE_ANALYTICS_ID
+        'database_path': get_db_path()
     }
     
-    # Get monetization stats
-    monetization_stats = get_monetization_stats(7)
-    
     recent = conn.execute(
-        "SELECT * FROM posts ORDER BY created_at DESC LIMIT 10"
+        "SELECT id, title, source_name, source_url, created_at FROM posts ORDER BY created_at DESC LIMIT 10"
     ).fetchall()
     
     conn.close()
     
     return render_template('admin/dashboard.html',
                          stats=stats,
-                         monetization_stats=monetization_stats,
                          recent_posts=recent,
                          config=FlaskConfig,
                          now=datetime.now())
@@ -1339,21 +1245,8 @@ def admin_dashboard():
 @login_required
 def admin_fetch_now():
     threading.Thread(target=fetcher.fetch_and_save, daemon=True).start()
-    flash('Aggressive content fetch started in background!', 'info')
+    flash('Content fetch started in background!', 'info')
     return redirect('/admin/dashboard')
-
-@app.route('/admin/monetization-settings', methods=['GET', 'POST'])
-@login_required
-def admin_monetization_settings():
-    if request.method == 'POST':
-        # Note: In a real app, you would save these to a config file or database
-        # For now, we'll just show a success message
-        flash('Monetization settings updated successfully!', 'success')
-        return redirect('/admin/dashboard')
-    
-    return render_template('admin/monetization.html',
-                         config=FlaskConfig,
-                         now=datetime.now())
 
 @app.route('/admin/logout')
 @login_required
@@ -1383,18 +1276,18 @@ def start_auto_fetcher():
                 logger.info(f"⏰ Next fetch in {FlaskConfig.UPDATE_INTERVAL_MINUTES} minutes...")
                 time.sleep(wait_time)
                 
-                # Run aggressive fetch
-                logger.info("🔄🔄🔄 RUNNING SCHEDULED AGGRESSIVE FETCH...")
+                # Run fetch
+                logger.info("🔄 RUNNING SCHEDULED FETCH...")
                 fetched = fetcher.fetch_and_save()
                 
                 if fetched > 0:
-                    logger.info(f"✅✅✅ Scheduled fetch: {fetched} new articles")
+                    logger.info(f"✅ Scheduled fetch: {fetched} new articles")
                 else:
-                    logger.info("✅ Scheduled fetch complete")
+                    logger.info("✅ Scheduled fetch complete - no new articles")
                     
             except Exception as e:
                 logger.error(f"❌ Background fetch error: {e}")
-                time.sleep(300)  # Wait 5 minutes on error
+                time.sleep(300)
     
     # Start thread
     thread = threading.Thread(target=fetch_loop, daemon=True)
@@ -1415,12 +1308,8 @@ def debug():
         published_posts = conn.execute("SELECT COUNT(*) FROM posts WHERE is_published = 1").fetchone()[0]
         categories = conn.execute("SELECT COUNT(*) FROM categories").fetchone()[0]
         
-        # Get monetization stats
-        monetization_stats = get_monetization_stats(30)
-        
-        # Check source URLs
         sample_posts = conn.execute(
-            "SELECT title, source_url FROM posts WHERE is_published = 1 ORDER BY RANDOM() LIMIT 5"
+            "SELECT id, title, source_url, source_name, created_at FROM posts WHERE is_published = 1 ORDER BY created_at DESC LIMIT 5"
         ).fetchall()
         
         conn.close()
@@ -1442,80 +1331,39 @@ def debug():
                 'is_fetching': fetcher.is_fetching,
                 'last_fetch_time': fetcher.last_fetch_time.isoformat() if fetcher.last_fetch_time else None,
                 'last_fetch_count': fetcher.last_fetch_count,
-                'active_sources': len([s for s in fetcher.NEWS_SOURCES if s.get('enabled', True)]),
-                'sources': [s['name'] for s in fetcher.NEWS_SOURCES if s.get('enabled', True)]
+                'active_sources': len([s for s in fetcher.NEWS_SOURCES if s.get('enabled', True)])
             },
-            'monetization': {
-                'enabled': FlaskConfig.ENABLE_ADS,
-                'adsense_client': FlaskConfig.ADSENSE_CLIENT,
-                'analytics_id': FlaskConfig.GOOGLE_ANALYTICS_ID,
-                'stats_last_30_days': monetization_stats,
-                'total_views_30_days': sum(s['total_views'] or 0 for s in monetization_stats)
-            },
-            'sample_posts': [{'title': p[0][:50], 'source_url': p[1]} for p in sample_posts],
-            'config': {
-                'update_interval': FlaskConfig.UPDATE_INTERVAL_MINUTES,
-                'max_articles': FlaskConfig.MAX_ARTICLES_PER_SOURCE,
-                'site_url': FlaskConfig.SITE_URL
-            }
+            'sample_posts': [
+                {
+                    'id': p[0], 
+                    'title': p[1][:50], 
+                    'source_url': p[2],
+                    'source_name': p[3],
+                    'created_at': p[4]
+                } for p in sample_posts
+            ]
         })
         
     except Exception as e:
         return jsonify({'status': 'error', 'error': str(e)})
 
-@app.route('/test-source-links')
-def test_source_links():
-    """Test that source links work"""
-    try:
-        conn = get_db_connection()
-        posts = conn.execute(
-            "SELECT id, title, source_url FROM posts WHERE is_published = 1 ORDER BY RANDOM() LIMIT 5"
-        ).fetchall()
-        conn.close()
-        
-        results = []
-        for post in posts:
-            post_dict = dict(post)
-            source_url = post_dict['source_url']
-            is_valid = source_url and source_url.startswith('http') and source_url != '#'
-            
-            results.append({
-                'id': post_dict['id'],
-                'title': post_dict['title'][:50],
-                'source_url': source_url,
-                'is_valid': is_valid,
-                'clickable': f'<a href="{source_url}" target="_blank">Read Original</a>' if is_valid else 'No Link'
-            })
-        
-        html = "<h1>Source Link Test</h1>"
-        html += "<table border='1'><tr><th>ID</th><th>Title</th><th>Source URL</th><th>Valid</th><th>Link</th></tr>"
-        for r in results:
-            html += f"<tr><td>{r['id']}</td><td>{r['title']}</td><td>{r['source_url']}</td><td>{r['is_valid']}</td><td>{r['clickable']}</td></tr>"
-        html += "</table>"
-        html += f"<p>Total posts: {len(results)}</p>"
-        
-        return html
-        
-    except Exception as e:
-        return f"Error: {str(e)}"
+@app.route('/test-fetch')
+def test_fetch():
+    """Test fetch directly"""
+    result = fetcher.fetch_and_save()
+    return f"<h1>Fetch Test</h1><p>Result: {result} articles fetched</p>"
 
 # ============= START APP =============
 if __name__ == '__main__':
-    print("=" * 60)
-    print("🇿🇦 MZANSI INSIGHTS - MONETIZED VERSION")
-    print("=" * 60)
     print(f"🌐 Site URL: {FlaskConfig.SITE_URL}")
     print(f"🔐 Admin: {FlaskConfig.SITE_URL}/admin/login")
     print(f"📧 Contact: {FlaskConfig.CONTACT_EMAIL}")
     print(f"📱 Phone: {FlaskConfig.CONTACT_PHONE}")
-    print(f"💰 Monetization: {'ENABLED' if FlaskConfig.ENABLE_ADS else 'DISABLED'}")
-    print(f"📊 Analytics: {'ENABLED' if FlaskConfig.ENABLE_ANALYTICS else 'DISABLED'}")
-    print(f"🔗 AdSense Client: {FlaskConfig.ADSENSE_CLIENT}")
-    print(f"📈 Google Analytics ID: {FlaskConfig.GOOGLE_ANALYTICS_ID}")
+    print(f"💰 AdSense: {'ENABLED' if FlaskConfig.ADSENSE_ENABLED else 'DISABLED'}")
     print(f"📊 Active Sources: {len([s for s in fetcher.NEWS_SOURCES if s.get('enabled', True)])}")
     print(f"⏰ Auto-update: Every {FlaskConfig.UPDATE_INTERVAL_MINUTES} minutes")
-    print(f"🔥 Max articles per source: {FlaskConfig.MAX_ARTICLES_PER_SOURCE}")
-    print(f"🗄️ Database: {get_db_path()}")
+    print("=" * 60)
+    print("🚀 Ready to fetch news from South African sources!")
     print("=" * 60)
     
     # Run the app
