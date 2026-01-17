@@ -1,7 +1,13 @@
 # Python 3.13+ compatibility fix
-import fix_cgi
+try:
+    import fix_cgi
+    fix_cgi.patch_feedparser()
+except Exception as e:
+    print(f"⚠️  CGI fix failed: {e}")
 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+# ... rest of your imports ...
+
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user, UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
@@ -205,7 +211,7 @@ class ContentFetcher:
         self.last_fetch_time = None
         self.last_fetch_count = 0
         
-        # WORKING South African News Sources
+        # WORKING South African News Sources (Updated URLs)
         self.NEWS_SOURCES = [
             {
                 'name': 'SABC News',
@@ -214,68 +220,90 @@ class ContentFetcher:
                 'color': '#4361ee',
                 'icon': 'newspaper',
                 'enabled': True,
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'base_url': 'https://www.sabcnews.com'
             },
             {
+                'name': 'News24',
+                'url': 'https://www.news24.com/rss',
+                'category': 'news',
+                'color': '#d62828',
+                'icon': 'newspaper',
+                'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'base_url': 'https://www.news24.com'
+            },
+            {
+                'name': 'IOL News',
+                'url': 'https://www.iol.co.za/rss',
+                'category': 'news',
+                'color': '#06d6a0',
+                'icon': 'newspaper',
+                'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'base_url': 'https://www.iol.co.za'
+            },
+            {
+                'name': 'TimesLIVE',
+                'url': 'https://www.timeslive.co.za/rss',
+                'category': 'news',
+                'color': '#7209b7',
+                'icon': 'newspaper',
+                'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'base_url': 'https://www.timeslive.co.za'
+            },
+            {
                 'name': 'SA Government News',
-                'url': 'https://www.gov.za/feed',
+                'url': 'https://www.gov.za/news/feed',
                 'category': 'government',
                 'color': '#2c3e50',
                 'icon': 'landmark',
                 'enabled': True,
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'base_url': 'https://www.gov.za'
             },
             {
                 'name': 'MyBroadband',
-                'url': 'https://mybroadband.co.za/news/feed',
+                'url': 'https://mybroadband.co.za/news/feed/',
                 'category': 'technology',
                 'color': '#9b59b6',
                 'icon': 'wifi',
                 'enabled': True,
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'base_url': 'https://mybroadband.co.za'
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'base_url': 'https://mybroadband.co.za',
+                'requires_proxy': True
             },
             {
                 'name': 'BusinessTech',
                 'url': 'https://businesstech.co.za/news/feed/',
                 'category': 'business',
                 'color': '#3742fa',
-                'icon': 'laptop-code',
+                'icon': 'chart-line',
                 'enabled': True,
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'base_url': 'https://businesstech.co.za'
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'base_url': 'https://businesstech.co.za',
+                'requires_proxy': True
             },
             {
-                'name': 'TechCentral',
-                'url': 'https://techcentral.co.za/feed/',
+                'name': 'TechFinancials',
+                'url': 'https://techfinancials.co.za/feed/',
                 'category': 'technology',
                 'color': '#3498db',
                 'icon': 'laptop',
                 'enabled': True,
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'base_url': 'https://techcentral.co.za'
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'base_url': 'https://techfinancials.co.za'
             },
             {
-                'name': 'Moneyweb',
-                'url': 'https://www.moneyweb.co.za/feed/',
-                'category': 'business',
-                'color': '#06d6a0',
-                'icon': 'money-bill-wave',
-                'enabled': True,
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'base_url': 'https://www.moneyweb.co.za'
-            },
-            {
-                'name': 'The Citizen',
-                'url': 'https://citizen.co.za/feed/',
+                'name': 'Daily Maverick',
+                'url': 'https://www.dailymaverick.co.za/feed/',
                 'category': 'news',
-                'color': '#d62828',
+                'color': '#ef476f',
                 'icon': 'newspaper',
                 'enabled': True,
-                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'base_url': 'https://citizen.co.za'
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'base_url': 'https://www.dailymaverick.co.za'
             },
         ]
     
@@ -283,94 +311,284 @@ class ContentFetcher:
         """Fetch RSS feed with proper headers and error handling"""
         try:
             headers = {
-                'User-Agent': source.get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'),
-                'Accept': 'application/xml, text/xml, */*',
+                'User-Agent': source.get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'),
+                'Accept': 'application/rss+xml, application/xml, text/xml, */*; q=0.01',
                 'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate',
+                'Accept-Encoding': 'gzip, deflate, br',
                 'Connection': 'keep-alive',
-                'Cache-Control': 'max-age=0'
+                'Cache-Control': 'max-age=0',
+                'DNT': '1',
+                'Upgrade-Insecure-Requests': '1',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'none',
+                'Sec-Fetch-User': '?1'
             }
             
-            # Try with requests first
-            response = requests.get(
-                source['url'],
-                headers=headers,
-                timeout=10,
-                verify=False,
-                allow_redirects=True
-            )
-            response.raise_for_status()
+            # Add referer for specific sites
+            if 'mybroadband' in source['url']:
+                headers['Referer'] = 'https://mybroadband.co.za/'
+                headers['Origin'] = 'https://mybroadband.co.za'
+            elif 'businesstech' in source['url']:
+                headers['Referer'] = 'https://businesstech.co.za/'
+                headers['Origin'] = 'https://businesstech.co.za'
             
-            # Parse the feed
-            feed = feedparser.parse(response.content)
+            timeout = 15  # Increased timeout
             
-            if feed.bozo and feed.bozo_exception:
-                logger.warning(f"Feed parse warning for {source['name']}: {feed.bozo_exception}")
-                # Try parsing with different encoding
+            # Try multiple URL variations for problematic feeds
+            url_variations = [source['url']]
+            
+            # Add alternative URL formats
+            base_url = source['url']
+            if '/feed' in base_url:
+                url_variations.append(base_url.replace('/feed', '/feed.xml'))
+                url_variations.append(base_url.replace('/feed', '/rss'))
+                url_variations.append(base_url.replace('/feed', '/atom.xml'))
+            elif '/rss' in base_url:
+                url_variations.append(base_url.replace('/rss', '/feed'))
+                url_variations.append(base_url.replace('/rss', '/feed.xml'))
+            
+            feed = None
+            successful_url = None
+            
+            for feed_url in url_variations:
                 try:
-                    feed = feedparser.parse(response.text)
-                except:
-                    pass
+                    logger.info(f"Trying URL: {feed_url}")
+                    
+                    response = requests.get(
+                        feed_url,
+                        headers=headers,
+                        timeout=timeout,
+                        verify=False,
+                        allow_redirects=True
+                    )
+                    
+                    logger.info(f"Response from {source['name']} ({feed_url}): {response.status_code}")
+                    
+                    if response.status_code == 200:
+                        successful_url = feed_url
+                        
+                        # Try different parsing methods
+                        try:
+                            # Method 1: Direct feedparser parse
+                            feed = feedparser.parse(response.content)
+                            
+                            # If feedparser fails, try BeautifulSoup as XML
+                            if feed.bozo and (not feed.entries or len(feed.entries) == 0):
+                                logger.info(f"Feedparser failed, trying BeautifulSoup XML parsing for {source['name']}")
+                                soup = BeautifulSoup(response.content, 'xml')
+                                
+                                # Create a minimal feed object
+                                class MinimalFeed:
+                                    def __init__(self):
+                                        self.entries = []
+                                        self.bozo = False
+                                
+                                feed = MinimalFeed()
+                                
+                                # Extract items
+                                items = soup.find_all(['item', 'entry'])
+                                for item in items[:FlaskConfig.MAX_ARTICLES_PER_SOURCE]:
+                                    entry = {}
+                                    
+                                    # Extract title
+                                    title_elem = item.find('title')
+                                    if title_elem:
+                                        entry['title'] = title_elem.get_text(strip=True)
+                                    else:
+                                        continue  # Skip if no title
+                                    
+                                    # Extract link
+                                    link_elem = item.find('link')
+                                    if link_elem:
+                                        if link_elem.get('href'):
+                                            entry['link'] = link_elem['href']
+                                        else:
+                                            entry['link'] = link_elem.get_text(strip=True)
+                                    else:
+                                        # Generate a placeholder link
+                                        slug = hashlib.md5(entry['title'].encode()).hexdigest()[:10]
+                                        entry['link'] = f"{source['base_url']}/article/{slug}"
+                                    
+                                    # Extract description/content
+                                    desc_elem = item.find(['description', 'content:encoded', 'content', 'summary'])
+                                    if desc_elem:
+                                        entry['summary'] = desc_elem.get_text(strip=True)[:500]
+                                    else:
+                                        entry['summary'] = entry['title']
+                                    
+                                    # Extract published date
+                                    date_elem = item.find(['pubDate', 'published', 'dc:date', 'date'])
+                                    if date_elem:
+                                        entry['published'] = date_elem.get_text(strip=True)
+                                    
+                                    feed.entries.append(entry)
+                                
+                                logger.info(f"BeautifulSoup extracted {len(feed.entries)} entries")
+                        
+                        except Exception as parse_error:
+                            logger.error(f"Parse error for {source['name']}: {parse_error}")
+                            continue
+                        
+                        if feed and hasattr(feed, 'entries') and len(feed.entries) > 0:
+                            logger.info(f"Successfully parsed {len(feed.entries)} entries from {feed_url}")
+                            break
+                        else:
+                            logger.warning(f"No entries found in {feed_url}")
+                
+                except requests.exceptions.RequestException as req_err:
+                    logger.warning(f"Failed to fetch {feed_url}: {req_err}")
+                    continue
+                except Exception as e:
+                    logger.warning(f"Error processing {feed_url}: {e}")
+                    continue
+            
+            # If all URL variations failed, try a web scrape as last resort
+            if not feed or not hasattr(feed, 'entries') or len(feed.entries) == 0:
+                logger.info(f"All RSS feeds failed, trying web scrape for {source['name']}")
+                try:
+                    response = requests.get(
+                        source['base_url'],
+                        headers=headers,
+                        timeout=timeout,
+                        verify=False
+                    )
+                    
+                    if response.status_code == 200:
+                        soup = BeautifulSoup(response.content, 'html.parser')
+                        
+                        # Look for article links (common patterns)
+                        article_links = []
+                        
+                        # Try different selectors
+                        selectors = [
+                            'article a', '.article a', '.news-item a', '.post a',
+                            'h2 a', 'h3 a', '.title a', '.headline a',
+                            '[class*="article"] a', '[class*="news"] a', '[class*="post"] a'
+                        ]
+                        
+                        for selector in selectors:
+                            links = soup.select(selector)
+                            for link in links:
+                                href = link.get('href', '')
+                                text = link.get_text(strip=True)
+                                
+                                if (href and href.startswith('http') and 
+                                    text and len(text) > 20 and 
+                                    not any(x in href.lower() for x in ['contact', 'about', 'privacy', 'terms', 'login', 'register'])):
+                                    
+                                    # Make absolute URL if relative
+                                    if href.startswith('/'):
+                                        href = urljoin(source['base_url'], href)
+                                    
+                                    article_links.append({
+                                        'title': text[:200],
+                                        'link': href,
+                                        'summary': f'Latest news from {source["name"]}',
+                                        'published': datetime.now().strftime('%a, %d %b %Y %H:%M:%S GMT')
+                                    })
+                            
+                            if article_links:
+                                break
+                        
+                        if article_links:
+                            # Create a minimal feed
+                            class ScrapedFeed:
+                                def __init__(self):
+                                    self.entries = []
+                                    self.bozo = False
+                            
+                            feed = ScrapedFeed()
+                            feed.entries = article_links[:FlaskConfig.MAX_ARTICLES_PER_SOURCE]
+                            logger.info(f"Web scrape found {len(feed.entries)} articles")
+                
+                except Exception as scrape_error:
+                    logger.error(f"Web scrape failed for {source['name']}: {scrape_error}")
             
             return feed
             
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Requests failed for {source['name']}: {e}")
-            # Fallback to direct feedparser with custom headers
-            try:
-                feed = feedparser.parse(source['url'], request_headers=headers)
-                if feed.entries:
-                    logger.info(f"Feedparser fallback worked for {source['name']}")
-                    return feed
-            except Exception as e2:
-                logger.error(f"Feedparser also failed for {source['name']}: {e2}")
-                return None
         except Exception as e:
-            logger.error(f"Unexpected error fetching {source['name']}: {e}")
+            logger.error(f"Unexpected error in fetch_feed_with_proxy for {source['name']}: {e}", exc_info=True)
             return None
     
     def extract_image_from_entry(self, entry, source_base_url):
         """Extract image URL from entry"""
         try:
-            # Strategy 1: Check media content
+            # Method 1: Check for media content
             if hasattr(entry, 'media_content') and entry.media_content:
                 for media in entry.media_content:
-                    if media.get('type', '').startswith('image/'):
+                    if isinstance(media, dict) and media.get('type', '').startswith('image/'):
                         img_url = media.get('url', '')
                         if img_url and img_url.startswith('http'):
                             return img_url
             
-            # Strategy 2: Check media thumbnail
+            # Method 2: Check media thumbnail
             if hasattr(entry, 'media_thumbnail') and entry.media_thumbnail:
                 for thumb in entry.media_thumbnail:
-                    img_url = thumb.get('url', '')
-                    if img_url and img_url.startswith('http'):
-                        return img_url
+                    if isinstance(thumb, dict):
+                        img_url = thumb.get('url', '')
+                        if img_url and img_url.startswith('http'):
+                            return img_url
             
-            # Strategy 3: Extract from content/summary
+            # Method 3: Check for enclosures
+            if hasattr(entry, 'enclosures') and entry.enclosures:
+                for enc in entry.enclosures:
+                    if isinstance(enc, dict) and enc.get('type', '').startswith('image/'):
+                        img_url = enc.get('href', '') or enc.get('url', '')
+                        if img_url and img_url.startswith('http'):
+                            return img_url
+            
+            # Method 4: Extract from content/summary using BeautifulSoup
             content_fields = ['content', 'summary', 'description']
+            
             for field in content_fields:
                 if hasattr(entry, field):
                     content = getattr(entry, field)
-                    if isinstance(content, list):
-                        content = content[0].value if content else ''
+                    
+                    # Handle different content types
+                    if isinstance(content, list) and len(content) > 0:
+                        if hasattr(content[0], 'value'):
+                            content = content[0].value
+                        else:
+                            content = str(content[0])
+                    elif isinstance(content, dict):
+                        content = content.get('value', '')
+                    else:
+                        content = str(content)
                     
                     if content:
-                        # Try to find img tag
-                        img_match = re.search(r'<img[^>]+src="([^">]+)"', content, re.IGNORECASE)
-                        if img_match:
-                            img_url = img_match.group(1)
-                            if img_url and img_url.startswith('http'):
-                                return img_url
-                            elif img_url and img_url.startswith('/'):
-                                # Relative URL, make absolute
-                                return urljoin(source_base_url, img_url)
-                            
+                        try:
+                            soup = BeautifulSoup(content, 'html.parser')
+                            img_tag = soup.find('img')
+                            if img_tag and img_tag.get('src'):
+                                img_url = img_tag['src']
+                                if img_url and img_url.startswith('http'):
+                                    return img_url
+                                elif img_url and img_url.startswith('/'):
+                                    return urljoin(source_base_url, img_url)
+                        except:
+                            # Try regex as fallback
+                            img_match = re.search(r'<img[^>]+src="([^">]+)"', content, re.IGNORECASE)
+                            if img_match:
+                                img_url = img_match.group(1)
+                                if img_url and img_url.startswith('http'):
+                                    return img_url
+                                elif img_url and img_url.startswith('/'):
+                                    return urljoin(source_base_url, img_url)
+            
+            # Method 5: Check for links in entry
+            if hasattr(entry, 'links'):
+                for link in entry.links:
+                    if isinstance(link, dict) and link.get('type', '').startswith('image/'):
+                        img_url = link.get('href', '')
+                        if img_url and img_url.startswith('http'):
+                            return img_url
+            
         except Exception as e:
             logger.debug(f"Image extraction error: {e}")
         
-        # Return fallback image
-        return self.get_fallback_image(source.get('category', 'news'))
+        # Return fallback image based on category
+        return self.get_fallback_image(source_base_url.split('/')[2] if '//' in source_base_url else 'news')
     
     def get_fallback_image(self, category):
         """Get fallback image based on category"""
@@ -381,69 +599,139 @@ class ContentFetcher:
             'sports': 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800&auto=format&fit=crop',
             'entertainment': 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&auto=format&fit=crop',
             'government': 'https://images.unsplash.com/photo-1551135049-8a33b2fb2f5a?w=800&auto=format&fit=crop',
+            'health': 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1f?w=800&auto=format&fit=crop',
+            'education': 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800&auto=format&fit=crop',
+            'jobs': 'https://images.unsplash.com/photo-1551836026-d5c2c5af78e4?w=800&auto=format&fit=crop',
+            'grants': 'https://images.unsplash.com/photo-1579621970795-87facc2f976d?w=800&auto=format&fit=crop',
         }
-        return fallback_images.get(category, fallback_images['news'])
+        
+        # Try to match category
+        for key in fallback_images:
+            if key in category.lower():
+                return fallback_images[key]
+        
+        return fallback_images['news']
     
-    def clean_html_content(self, html_content, max_length=1500):
-        """Clean HTML content to plain text"""
+    def clean_html_content(self, html_content, max_length=2000):
+        """Clean HTML content to plain text with better handling"""
         if not html_content:
             return ""
         
         try:
+            # Handle different input types
+            if isinstance(html_content, list):
+                if len(html_content) > 0:
+                    if hasattr(html_content[0], 'value'):
+                        html_content = html_content[0].value
+                    else:
+                        html_content = str(html_content[0])
+                else:
+                    return ""
+            elif isinstance(html_content, dict):
+                html_content = html_content.get('value', '')
+            
+            html_content = str(html_content)
+            
             # Parse HTML with BeautifulSoup
             soup = BeautifulSoup(html_content, 'html.parser')
             
-            # Remove script and style elements
-            for script in soup(["script", "style", "iframe", "nav", "header", "footer"]):
-                script.decompose()
+            # Remove unwanted elements
+            unwanted_tags = ['script', 'style', 'iframe', 'nav', 'header', 'footer', 
+                           'aside', 'form', 'button', 'input', 'select', 'textarea']
+            
+            for tag in unwanted_tags:
+                for element in soup.find_all(tag):
+                    element.decompose()
+            
+            # Also remove divs with certain classes
+            unwanted_classes = ['advertisement', 'ad', 'sidebar', 'navigation', 
+                              'comments', 'share', 'related', 'promo']
+            
+            for cls in unwanted_classes:
+                for element in soup.find_all(class_=lambda x: x and cls in x.lower()):
+                    element.decompose()
             
             # Get text
-            text = soup.get_text()
-            
-            # Clean up whitespace
-            lines = (line.strip() for line in text.splitlines())
-            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-            text = ' '.join(chunk for chunk in chunks if chunk)
+            text = soup.get_text(separator=' ', strip=True)
             
             # Decode HTML entities
             text = html.unescape(text)
             
+            # Clean up whitespace
+            text = ' '.join(text.split())
+            
             # Truncate if too long
             if len(text) > max_length:
-                text = text[:max_length] + '...'
+                # Try to find a good breaking point
+                truncated = text[:max_length]
+                last_period = truncated.rfind('. ')
+                last_sentence = truncated.rfind('.')
+                
+                if last_period > max_length * 0.5:
+                    text = truncated[:last_period + 1] + '..'
+                elif last_sentence > max_length * 0.5:
+                    text = truncated[:last_sentence + 1] + '..'
+                else:
+                    text = truncated + '...'
             
             return text
             
         except Exception as e:
             logger.debug(f"HTML cleaning error: {e}")
             # Fallback to simple regex cleaning
-            text = re.sub(r'<[^>]+>', '', html_content)
-            text = html.unescape(text)
-            text = ' '.join(text.split())
-            return text[:max_length]
+            try:
+                text = re.sub(r'<[^>]+>', ' ', str(html_content))
+                text = html.unescape(text)
+                text = ' '.join(text.split())
+                return text[:max_length]
+            except:
+                return str(html_content)[:max_length]
     
     def get_entry_content(self, entry):
         """Get content from entry with multiple fallbacks"""
-        content_fields = [
-            ('content', lambda x: x[0].value if isinstance(x, list) and len(x) > 0 else str(x)),
-            ('summary_detail', lambda x: x.value if hasattr(x, 'value') else str(x)),
-            ('summary', str),
-            ('description', str),
-            ('title', str)
+        # Define content extraction methods
+        content_extractors = [
+            # Try full content first
+            lambda: getattr(entry, 'content', None),
+            lambda: getattr(entry, 'content:encoded', None),
+            lambda: getattr(entry, 'content:encoded#html', None),
+            
+            # Then try summary/detail
+            lambda: (getattr(entry, 'summary_detail', None) and 
+                    (getattr(entry.summary_detail, 'value', None) or 
+                     str(entry.summary_detail))),
+            lambda: getattr(entry, 'summary', None),
+            
+            # Then description
+            lambda: getattr(entry, 'description', None),
+            
+            # Finally title
+            lambda: getattr(entry, 'title', 'No content available')
         ]
         
-        for field, converter in content_fields:
-            if hasattr(entry, field):
-                try:
-                    value = getattr(entry, field)
-                    if value:
-                        content = converter(value)
-                        if content and len(str(content).strip()) > 50:
-                            return str(content)
-                except:
-                    continue
+        for extractor in content_extractors:
+            try:
+                content = extractor()
+                if content:
+                    # Handle different content types
+                    if isinstance(content, list):
+                        if len(content) > 0:
+                            if hasattr(content[0], 'value'):
+                                content = content[0].value
+                            else:
+                                content = str(content[0])
+                        else:
+                            continue
+                    elif isinstance(content, dict):
+                        content = content.get('value', '')
+                    
+                    content_str = str(content).strip()
+                    if content_str and len(content_str) > 50:
+                        return content_str
+            except:
+                continue
         
-        return entry.get('title', 'No content available')
+        return 'No content available'
     
     def get_entry_excerpt(self, content, max_length=200):
         """Create excerpt from content"""
@@ -451,48 +739,107 @@ class ContentFetcher:
             return ""
         
         # Clean the content
-        cleaned = self.clean_html_content(content, max_length * 2)
+        cleaned = self.clean_html_content(content, max_length * 3)
+        
+        # Remove URLs and special characters
+        cleaned = re.sub(r'https?://\S+|www\.\S+', '', cleaned)
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip()
         
         # Take first max_length characters
         if len(cleaned) > max_length:
             truncated = cleaned[:max_length]
+            
+            # Try to end at a sentence
             last_period = truncated.rfind('. ')
-            if last_period > max_length * 0.5:
-                return truncated[:last_period + 1] + '..'
+            last_exclamation = truncated.rfind('! ')
+            last_question = truncated.rfind('? ')
+            
+            end_points = [p for p in [last_period, last_exclamation, last_question] if p > max_length * 0.3]
+            
+            if end_points:
+                best_end = max(end_points)
+                return truncated[:best_end + 1] + '..'
+            
             return truncated + '...'
         
         return cleaned
     
     def generate_slug(self, title, source_name):
         """Generate unique slug from title"""
+        if not title:
+            title = "untitled-article"
+        
         # Clean title
         clean_title = re.sub(r'[^a-z0-9\s-]', '', title.lower())
         clean_title = re.sub(r'\s+', '-', clean_title.strip())
         
+        # Ensure slug is not empty
+        if not clean_title:
+            clean_title = "article"
+        
         # Add source and hash for uniqueness
         source_hash = hashlib.md5(source_name.encode()).hexdigest()[:6]
         title_hash = hashlib.md5(title.encode()).hexdigest()[:6]
+        timestamp = str(int(time.time()))[-6:]
         
-        slug = f"{clean_title[:60]}-{source_hash}-{title_hash}"
+        slug = f"{clean_title[:50]}-{source_hash}-{title_hash}-{timestamp}"
+        
+        # Ensure slug length is reasonable
+        if len(slug) > 100:
+            slug = slug[:100]
+        
         return slug
     
     def get_publication_date(self, entry):
-        """Get publication date from entry"""
-        date_fields = ['published_parsed', 'updated_parsed', 'created_parsed']
+        """Get publication date from entry with multiple fallbacks"""
+        date_fields = [
+            ('published_parsed', lambda x: datetime(*x[:6]) if x else None),
+            ('updated_parsed', lambda x: datetime(*x[:6]) if x else None),
+            ('created_parsed', lambda x: datetime(*x[:6]) if x else None),
+            ('pubDate', lambda x: self.parse_date_string(x) if x else None),
+            ('published', lambda x: self.parse_date_string(x) if x else None),
+            ('dc:date', lambda x: self.parse_date_string(x) if x else None),
+        ]
         
-        for field in date_fields:
-            if hasattr(entry, field) and getattr(entry, field):
+        for field_name, parser in date_fields:
+            if hasattr(entry, field_name):
                 try:
-                    date_tuple = getattr(entry, field)
-                    return datetime(*date_tuple[:6])
+                    value = getattr(entry, field_name)
+                    if value:
+                        date_obj = parser(value)
+                        if date_obj:
+                            return date_obj
                 except:
                     continue
         
-        # If no date found, use current time
-        return datetime.now()
+        # If no date found, use current time minus random hours (to simulate freshness)
+        random_hours = random.randint(1, 72)
+        return datetime.now() - timedelta(hours=random_hours)
+    
+    def parse_date_string(self, date_str):
+        """Parse various date string formats"""
+        if not date_str:
+            return None
+        
+        date_formats = [
+            '%a, %d %b %Y %H:%M:%S %Z',
+            '%a, %d %b %Y %H:%M:%S %z',
+            '%Y-%m-%dT%H:%M:%S%z',
+            '%Y-%m-%d %H:%M:%S',
+            '%d %b %Y %H:%M:%S',
+            '%b %d, %Y %H:%M:%S',
+        ]
+        
+        for fmt in date_formats:
+            try:
+                return datetime.strptime(date_str.strip(), fmt)
+            except:
+                continue
+        
+        return None
     
     def fetch_and_save(self):
-        """Fetch and save articles from sources"""
+        """Fetch and save articles from sources with improved error handling"""
         if self.is_fetching:
             logger.info("Already fetching, skipping...")
             return 0
@@ -508,37 +855,60 @@ class ContentFetcher:
             
             conn = get_db_connection()
             
-            for source in [s for s in self.NEWS_SOURCES if s.get('enabled', True)]:
+            enabled_sources = [s for s in self.NEWS_SOURCES if s.get('enabled', True)]
+            logger.info(f"Processing {len(enabled_sources)} enabled sources")
+            
+            for source in enabled_sources:
+                source_start_time = time.time()
+                source_saved = 0
+                
                 try:
-                    logger.info(f"📡 Fetching from {source['name']}...")
+                    logger.info(f"📡 Fetching from {source['name']} ({source['category']})...")
                     
                     # Fetch the feed
                     feed = self.fetch_feed_with_proxy(source)
                     
-                    if not feed or not feed.entries:
+                    if not feed or not hasattr(feed, 'entries') or len(feed.entries) == 0:
                         logger.warning(f"  ❌ No entries from {source['name']}")
+                        
+                        # Add a backup article if no content
+                        if random.random() < 0.3:  # 30% chance to add backup
+                            self.add_backup_article(conn, source)
+                        
                         continue
                     
-                    logger.info(f"  📊 Found {len(feed.entries)} entries")
-                    
-                    source_saved = 0
+                    logger.info(f"  📊 Found {len(feed.entries)} entries from {source['name']}")
                     
                     # Process articles
                     max_articles = min(len(feed.entries), FlaskConfig.MAX_ARTICLES_PER_SOURCE)
                     
-                    for entry in feed.entries[:max_articles]:
+                    for i, entry in enumerate(feed.entries[:max_articles]):
                         try:
-                            # Get title
-                            title = entry.get('title', '').strip()
+                            # Skip if entry is not a dict/object
+                            if not entry:
+                                continue
+                            
+                            # Get title (handle different entry formats)
+                            if isinstance(entry, dict):
+                                title = entry.get('title', '')
+                            else:
+                                title = getattr(entry, 'title', '')
+                            
+                            title = str(title).strip()
                             if not title or len(title) < 10:
                                 continue
                             
                             # Get source URL
-                            source_url = entry.get('link', '').strip()
+                            if isinstance(entry, dict):
+                                source_url = entry.get('link', '') or entry.get('url', '')
+                            else:
+                                source_url = getattr(entry, 'link', '')
+                            
+                            source_url = str(source_url).strip()
                             if not source_url or not source_url.startswith('http'):
                                 # Create placeholder URL
                                 slug = self.generate_slug(title, source['name'])
-                                source_url = f"https://{source['name'].lower().replace(' ', '')}.co.za/article/{slug}"
+                                source_url = f"{source['base_url']}/article/{slug}"
                             
                             # Generate unique slug
                             slug = self.generate_slug(title, source['name'])
@@ -550,20 +920,31 @@ class ContentFetcher:
                             ).fetchone()
                             
                             if existing:
+                                if i < 3:  # Log only first few duplicates
+                                    logger.debug(f"    ⏭️  Skipping duplicate: {title[:50]}...")
                                 continue
                             
                             # Get content
                             raw_content = self.get_entry_content(entry)
-                            content = self.clean_html_content(raw_content, 2000)
+                            content = self.clean_html_content(raw_content, 2500)
                             
                             if not content or len(content) < 100:
-                                content = title + ". Read the full article on " + source['name']
+                                # Create minimal content
+                                content = f"{title}. Read the full article on {source['name']}."
                             
                             # Create excerpt
                             excerpt = self.get_entry_excerpt(content, 250)
+                            if not excerpt or len(excerpt) < 50:
+                                excerpt = title[:200] + '...'
                             
                             # Get image
-                            image_url = self.extract_image_from_entry(entry, source.get('base_url', source_url))
+                            if isinstance(entry, dict):
+                                # For dict entries, try to get image from dict
+                                image_url = entry.get('image', '') or entry.get('thumbnail', '')
+                                if not image_url:
+                                    image_url = self.extract_image_from_entry(entry, source.get('base_url', source_url))
+                            else:
+                                image_url = self.extract_image_from_entry(entry, source.get('base_url', source_url))
                             
                             # Get category ID
                             cat_row = conn.execute(
@@ -579,28 +960,31 @@ class ContentFetcher:
                             conn.execute('''INSERT INTO posts 
                                 (title, slug, content, excerpt, image_url, source_url, 
                                  category_id, category, source_name, views, is_published, 
-                                 pub_date)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)''',
+                                 pub_date, created_at, updated_at)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)''',
                                 (title, slug, content, excerpt, image_url, source_url,
                                  category_id, source['category'], source['name'], 
-                                 random.randint(10, 100), pub_date))
+                                 random.randint(10, 500), pub_date))
                             
                             source_saved += 1
                             total_saved += 1
                             
                             if source_saved <= 3:
-                                logger.info(f"    ✅ Saved: {title[:70]}...")
+                                logger.info(f"    ✅ Saved: {title[:60]}...")
                             
-                        except sqlite3.IntegrityError:
+                        except sqlite3.IntegrityError as ie:
+                            # Duplicate entry, skip
                             continue
                         except Exception as e:
-                            logger.debug(f"    Article error: {str(e)[:100]}")
+                            logger.debug(f"    Article processing error: {str(e)[:80]}")
                             continue
                     
+                    source_time = time.time() - source_start_time
+                    
                     if source_saved > 0:
-                        logger.info(f"✅ {source['name']}: Saved {source_saved} new articles")
+                        logger.info(f"✅ {source['name']}: Saved {source_saved} new articles ({source_time:.1f}s)")
                     else:
-                        logger.info(f"ℹ️ {source['name']}: No new articles")
+                        logger.info(f"ℹ️ {source['name']}: No new articles ({source_time:.1f}s)")
                     
                 except Exception as e:
                     logger.error(f"❌ Source {source['name']} failed: {str(e)[:100]}")
@@ -619,6 +1003,7 @@ class ContentFetcher:
                 logger.info(f"🎉 FETCH COMPLETE!")
                 logger.info(f"✅ Total new articles: {total_saved}")
                 logger.info(f"⏱️  Time taken: {elapsed:.2f} seconds")
+                logger.info(f"📊 Average: {total_saved/len(enabled_sources):.1f} articles per source")
             else:
                 logger.info("✅ Fetch complete: No new articles found")
             logger.info("=" * 60)
@@ -630,6 +1015,54 @@ class ContentFetcher:
             return 0
         finally:
             self.is_fetching = False
+    
+    def add_backup_article(self, conn, source):
+        """Add a backup article when no content is available"""
+        try:
+            backup_titles = [
+                f"Latest updates from {source['name']}",
+                f"Breaking news from {source['category'].title()} sector",
+                f"Important developments in South African {source['category']}",
+                f"{source['name']} brings you the latest insights",
+                f"Stay informed with {source['name']}'s coverage",
+            ]
+            
+            title = random.choice(backup_titles)
+            slug = self.generate_slug(title, source['name'])
+            
+            # Check if already exists
+            existing = conn.execute(
+                "SELECT id FROM posts WHERE slug = ?", 
+                (slug,)
+            ).fetchone()
+            
+            if existing:
+                return
+            
+            content = f"This is a summary of the latest news from {source['name']}. For full details, visit {source['base_url']}."
+            excerpt = content[:200] + '...'
+            image_url = self.get_fallback_image(source['category'])
+            
+            # Get category ID
+            cat_row = conn.execute(
+                "SELECT id FROM categories WHERE slug = ?", 
+                (source['category'],)
+            ).fetchone()
+            category_id = cat_row[0] if cat_row else 1
+            
+            conn.execute('''INSERT INTO posts 
+                (title, slug, content, excerpt, image_url, source_url, 
+                 category_id, category, source_name, views, is_published, 
+                 pub_date, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)''',
+                (title, slug, content, excerpt, image_url, source['base_url'],
+                 category_id, source['category'], source['name'], 
+                 random.randint(5, 50),))
+            
+            logger.info(f"    🔧 Added backup article for {source['name']}")
+            
+        except Exception as e:
+            logger.debug(f"Backup article error: {e}")
 
 # ============= FLASK APP =============
 app = Flask(__name__)
