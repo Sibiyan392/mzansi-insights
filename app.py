@@ -1,7 +1,8 @@
+# Python 3.13+ compatibility fix
+import fix_cgi
 
-
-
-
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user, UserMixin
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import os
@@ -19,7 +20,7 @@ import hashlib
 import requests
 from urllib.parse import urlparse, quote, unquote, urljoin
 import urllib3
-
+from bs4 import BeautifulSoup
 import html
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -59,11 +60,8 @@ class FlaskConfig:
     SITE_URL = os.environ.get('SITE_URL', 'https://mzansi-insights.onrender.com')
     
     # Content Update
-    UPDATE_INTERVAL_MINUTES = 120  # Fetch every 120 minutes (2 hours) to avoid rate limiting
-    MAX_ARTICLES_PER_SOURCE = 10   # Fetch up to 10 articles per source
-    
-    # API Keys
-    NEWS_API_KEY = os.environ.get('NEWS_API_KEY', '')
+    UPDATE_INTERVAL_MINUTES = 60  # Fetch every 60 minutes
+    MAX_ARTICLES_PER_SOURCE = 20  # Fetch up to 20 articles per source
     
     # Debug settings
     DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
@@ -206,62 +204,37 @@ class ContentFetcher:
         self.is_fetching = False
         self.last_fetch_time = None
         self.last_fetch_count = 0
-        self.newsapi_available = bool(FlaskConfig.NEWS_API_KEY and FlaskConfig.NEWS_API_KEY != 'your_newsapi_key_here')
         
-        # UPDATED: More reliable RSS sources
+        # WORKING South African News Sources
         self.NEWS_SOURCES = [
             {
-                'name': 'News24',
-                'url': 'https://www.news24.com/feeds/rss',
+                'name': 'SABC News',
+                'url': 'https://www.sabcnews.com/sabcnews/feed/',
                 'category': 'news',
                 'color': '#4361ee',
                 'icon': 'newspaper',
                 'enabled': True,
-                'base_url': 'https://www.news24.com'
-            },
-            {
-                'name': 'TimesLIVE',
-                'url': 'https://www.timeslive.co.za/feed/',
-                'category': 'news',
-                'color': '#d62828',
-                'icon': 'newspaper',
-                'enabled': True,
-                'base_url': 'https://www.timeslive.co.za'
-            },
-            {
-                'name': 'eNCA',
-                'url': 'https://www.enca.com/feed',
-                'category': 'news',
-                'color': '#3a86ff',
-                'icon': 'tv',
-                'enabled': True,
-                'base_url': 'https://www.enca.com'
-            },
-            {
-                'name': 'IOL',
-                'url': 'https://www.iol.co.za/feed',
-                'category': 'news',
-                'color': '#023e8a',
-                'icon': 'newspaper',
-                'enabled': True,
-                'base_url': 'https://www.iol.co.za'
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'base_url': 'https://www.sabcnews.com'
             },
             {
                 'name': 'SA Government News',
-                'url': 'https://www.gov.za/news/rss',
+                'url': 'https://www.gov.za/feed',
                 'category': 'government',
                 'color': '#2c3e50',
                 'icon': 'landmark',
                 'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'base_url': 'https://www.gov.za'
             },
             {
                 'name': 'MyBroadband',
-                'url': 'https://mybroadband.co.za/news/feed/',
+                'url': 'https://mybroadband.co.za/news/feed',
                 'category': 'technology',
                 'color': '#9b59b6',
                 'icon': 'wifi',
                 'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'base_url': 'https://mybroadband.co.za'
             },
             {
@@ -269,8 +242,9 @@ class ContentFetcher:
                 'url': 'https://businesstech.co.za/news/feed/',
                 'category': 'business',
                 'color': '#3742fa',
-                'icon': 'chart-line',
+                'icon': 'laptop-code',
                 'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'base_url': 'https://businesstech.co.za'
             },
             {
@@ -280,104 +254,80 @@ class ContentFetcher:
                 'color': '#3498db',
                 'icon': 'laptop',
                 'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
                 'base_url': 'https://techcentral.co.za'
+            },
+            {
+                'name': 'Moneyweb',
+                'url': 'https://www.moneyweb.co.za/feed/',
+                'category': 'business',
+                'color': '#06d6a0',
+                'icon': 'money-bill-wave',
+                'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'base_url': 'https://www.moneyweb.co.za'
+            },
+            {
+                'name': 'The Citizen',
+                'url': 'https://citizen.co.za/feed/',
+                'category': 'news',
+                'color': '#d62828',
+                'icon': 'newspaper',
+                'enabled': True,
+                'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                'base_url': 'https://citizen.co.za'
             },
         ]
     
-    def fetch_feed_with_improved_headers(self, source):
-        """Fetch RSS feed with improved headers and error handling"""
+    def fetch_feed_with_proxy(self, source):
+        """Fetch RSS feed with proper headers and error handling"""
         try:
-            # Rotating user agents to avoid blocking
-            user_agents = [
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/120.0',
-                'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
-            ]
-            
             headers = {
-                'User-Agent': random.choice(user_agents),
-                'Accept': 'application/rss+xml, application/xml, text/xml, */*',
+                'User-Agent': source.get('user_agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'),
+                'Accept': 'application/xml, text/xml, */*',
                 'Accept-Language': 'en-US,en;q=0.9',
-                'Accept-Encoding': 'gzip, deflate, br',
+                'Accept-Encoding': 'gzip, deflate',
                 'Connection': 'keep-alive',
-                'Cache-Control': 'max-age=0',
-                'DNT': '1',
-                'Upgrade-Insecure-Requests': '1',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-User': '?1'
+                'Cache-Control': 'max-age=0'
             }
             
-            # Try direct feedparser first with longer timeout
+            # Try with requests first
+            response = requests.get(
+                source['url'],
+                headers=headers,
+                timeout=10,
+                verify=False,
+                allow_redirects=True
+            )
+            response.raise_for_status()
+            
+            # Parse the feed
+            feed = feedparser.parse(response.content)
+            
+            if feed.bozo and feed.bozo_exception:
+                logger.warning(f"Feed parse warning for {source['name']}: {feed.bozo_exception}")
+                # Try parsing with different encoding
+                try:
+                    feed = feedparser.parse(response.text)
+                except:
+                    pass
+            
+            return feed
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Requests failed for {source['name']}: {e}")
+            # Fallback to direct feedparser with custom headers
             try:
-                logger.debug(f"Trying direct feedparser for {source['name']}")
-                feed = feedparser.parse(
-                    source['url'],
-                    agent=headers['User-Agent'],
-                    timeout=30
-                )
-                
+                feed = feedparser.parse(source['url'], request_headers=headers)
                 if feed.entries:
-                    logger.info(f"✓ Direct feedparser worked for {source['name']}")
+                    logger.info(f"Feedparser fallback worked for {source['name']}")
                     return feed
-            except Exception as e:
-                logger.debug(f"Direct feedparser failed for {source['name']}: {e}")
-            
-            # Try with requests as fallback
-            try:
-                logger.debug(f"Trying requests for {source['name']}")
-                response = requests.get(
-                    source['url'],
-                    headers=headers,
-                    timeout=25,
-                    verify=False,
-                    allow_redirects=True
-                )
-                
-                if response.status_code == 200:
-                    feed = feedparser.parse(response.content)
-                    if feed.entries:
-                        logger.info(f"✓ Requests method worked for {source['name']}")
-                        return feed
-            except Exception as e:
-                logger.debug(f"Requests method failed for {source['name']}: {e}")
-            
-            logger.warning(f"❌ All fetch methods failed for {source['name']}")
-            return None
-            
+            except Exception as e2:
+                logger.error(f"Feedparser also failed for {source['name']}: {e2}")
+                return None
         except Exception as e:
-            logger.error(f"❌ Fetch error for {source['name']}: {e}")
+            logger.error(f"Unexpected error fetching {source['name']}: {e}")
             return None
-    
-    def fetch_from_newsapi(self):
-        """Fetch articles from NewsAPI as primary source"""
-        if not self.newsapi_available:
-            logger.warning("NewsAPI key not configured or invalid")
-            return []
-        
-        try:
-            logger.info("📡 Fetching from NewsAPI...")
-            
-            # Fetch South African news
-            url = f'https://newsapi.org/v2/top-headlines?country=za&pageSize=50&apiKey={FlaskConfig.NEWS_API_KEY}'
-            
-            response = requests.get(url, timeout=15)
-            data = response.json()
-            
-            if data.get('status') == 'ok':
-                articles = data.get('articles', [])
-                logger.info(f"✅ NewsAPI: Fetched {len(articles)} articles")
-                return articles
-            
-            logger.warning(f"NewsAPI returned status: {data.get('status')}")
-            return []
-            
-        except Exception as e:
-            logger.error(f"❌ NewsAPI fetch error: {e}")
-            return []
     
     def extract_image_from_entry(self, entry, source_base_url):
         """Extract image URL from entry"""
@@ -420,7 +370,7 @@ class ContentFetcher:
             logger.debug(f"Image extraction error: {e}")
         
         # Return fallback image
-        return self.get_fallback_image('news')
+        return self.get_fallback_image(source.get('category', 'news'))
     
     def get_fallback_image(self, category):
         """Get fallback image based on category"""
@@ -431,52 +381,46 @@ class ContentFetcher:
             'sports': 'https://images.unsplash.com/photo-1546519638-68e109498ffc?w=800&auto=format&fit=crop',
             'entertainment': 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&auto=format&fit=crop',
             'government': 'https://images.unsplash.com/photo-1551135049-8a33b2fb2f5a?w=800&auto=format&fit=crop',
-            'health': 'https://images.unsplash.com/photo-1576091160399-112ba8d25d1f?w=800&auto=format&fit=crop',
-            'education': 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=800&auto=format&fit=crop',
         }
         return fallback_images.get(category, fallback_images['news'])
     
-    
-
-
-def clean_html_content(self, html_content, max_length=1500):
-    """Clean HTML content to plain text - without any external dependencies"""
-    if not html_content:
-        return ""
-    
-    try:
-        # Simple HTML tag removal with regex
-        # Remove script tags
-        text = re.sub(r'<script[^>]*>.*?</script>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
-        # Remove style tags
-        text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
-        # Remove HTML comments
-        text = re.sub(r'<!--.*?-->', '', text, flags=re.DOTALL)
-        # Remove all other HTML tags
-        text = re.sub(r'<[^>]+>', ' ', text)
+    def clean_html_content(self, html_content, max_length=1500):
+        """Clean HTML content to plain text"""
+        if not html_content:
+            return ""
         
-        # Decode HTML entities
-        import html
-        text = html.unescape(text)
-        
-        # Clean up whitespace
-        text = ' '.join(text.split())
-        
-        # Truncate if too long
-        if len(text) > max_length:
-            text = text[:max_length] + '...'
-        
-        return text
-        
-    except Exception as e:
-        logger.debug(f"HTML cleaning error: {e}")
-        # Ultra simple fallback
-        text = str(html_content)
-        text = text.replace('<', ' ').replace('>', ' ')
-        text = ' '.join(text.split())
-        return text[:max_length]
-
-    
+        try:
+            # Parse HTML with BeautifulSoup
+            soup = BeautifulSoup(html_content, 'html.parser')
+            
+            # Remove script and style elements
+            for script in soup(["script", "style", "iframe", "nav", "header", "footer"]):
+                script.decompose()
+            
+            # Get text
+            text = soup.get_text()
+            
+            # Clean up whitespace
+            lines = (line.strip() for line in text.splitlines())
+            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+            text = ' '.join(chunk for chunk in chunks if chunk)
+            
+            # Decode HTML entities
+            text = html.unescape(text)
+            
+            # Truncate if too long
+            if len(text) > max_length:
+                text = text[:max_length] + '...'
+            
+            return text
+            
+        except Exception as e:
+            logger.debug(f"HTML cleaning error: {e}")
+            # Fallback to simple regex cleaning
+            text = re.sub(r'<[^>]+>', '', html_content)
+            text = html.unescape(text)
+            text = ' '.join(text.split())
+            return text[:max_length]
     
     def get_entry_content(self, entry):
         """Get content from entry with multiple fallbacks"""
@@ -547,30 +491,8 @@ def clean_html_content(self, html_content, max_length=1500):
         # If no date found, use current time
         return datetime.now()
     
-    def map_newsapi_category(self, source_name):
-        """Map NewsAPI source to our categories"""
-        category_map = {
-            'News24': 'news',
-            'BBC News': 'news',
-            'CNN': 'news',
-            'Reuters': 'news',
-            'Business Insider': 'business',
-            'Financial Times': 'business',
-            'TechCentral': 'technology',
-            'MyBroadband': 'technology',
-            'ESPN': 'sports',
-            'Sky Sports': 'sports',
-            'Entertainment Weekly': 'entertainment',
-        }
-        
-        for key, category in category_map.items():
-            if key.lower() in source_name.lower():
-                return category
-        
-        return 'news'
-    
     def fetch_and_save(self):
-        """Fetch and save articles from multiple sources"""
+        """Fetch and save articles from sources"""
         if self.is_fetching:
             logger.info("Already fetching, skipping...")
             return 0
@@ -586,97 +508,12 @@ def clean_html_content(self, html_content, max_length=1500):
             
             conn = get_db_connection()
             
-            # Priority 1: Fetch from NewsAPI (most reliable)
-            if self.newsapi_available:
-                newsapi_articles = self.fetch_from_newsapi()
-                if newsapi_articles:
-                    logger.info(f"📊 Processing {len(newsapi_articles)} NewsAPI articles")
-                    
-                    for article in newsapi_articles:
-                        try:
-                            title = article.get('title', '').strip()
-                            if not title or len(title) < 10:
-                                continue
-                            
-                            source_url = article.get('url', '').strip()
-                            if not source_url or not source_url.startswith('http'):
-                                continue
-                            
-                            # Generate unique slug
-                            source_name = article.get('source', {}).get('name', 'NewsAPI')
-                            slug = self.generate_slug(title, source_name)
-                            
-                            # Check if article already exists
-                            existing = conn.execute(
-                                "SELECT id FROM posts WHERE slug = ? OR source_url = ?", 
-                                (slug, source_url)
-                            ).fetchone()
-                            
-                            if existing:
-                                continue
-                            
-                            # Get content
-                            content = article.get('description', '') or article.get('content', '')
-                            if not content or len(content) < 100:
-                                content = title + ". Read the full article."
-                            
-                            # Create excerpt
-                            excerpt = self.get_entry_excerpt(content, 250)
-                            
-                            # Get image
-                            image_url = article.get('urlToImage', '')
-                            if not image_url or not image_url.startswith('http'):
-                                image_url = self.get_fallback_image('news')
-                            
-                            # Map category
-                            category_name = self.map_newsapi_category(source_name)
-                            
-                            # Get category ID
-                            cat_row = conn.execute(
-                                "SELECT id FROM categories WHERE slug = ?", 
-                                (category_name,)
-                            ).fetchone()
-                            category_id = cat_row[0] if cat_row else 1
-                            
-                            # Get publication date
-                            pub_date_str = article.get('publishedAt', '')
-                            if pub_date_str:
-                                try:
-                                    pub_date = datetime.strptime(pub_date_str, '%Y-%m-%dT%H:%M:%SZ')
-                                except:
-                                    pub_date = datetime.now()
-                            else:
-                                pub_date = datetime.now()
-                            
-                            # Insert the article
-                            conn.execute('''INSERT INTO posts 
-                                (title, slug, content, excerpt, image_url, source_url, 
-                                 category_id, category, source_name, views, is_published, 
-                                 pub_date)
-                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)''',
-                                (title, slug, content, excerpt, image_url, source_url,
-                                 category_id, category_name, source_name, 
-                                 random.randint(10, 100), pub_date))
-                            
-                            total_saved += 1
-                            
-                            if total_saved <= 5:
-                                logger.info(f"    ✅ NewsAPI: {title[:70]}...")
-                            
-                        except sqlite3.IntegrityError:
-                            continue
-                        except Exception as e:
-                            logger.debug(f"    NewsAPI article error: {str(e)[:100]}")
-                            continue
-            
-            # Priority 2: Try RSS feeds (fallback)
-            rss_saved = 0
             for source in [s for s in self.NEWS_SOURCES if s.get('enabled', True)]:
                 try:
-                    logger.info(f"📡 Trying RSS: {source['name']}...")
+                    logger.info(f"📡 Fetching from {source['name']}...")
                     
                     # Fetch the feed
-                    feed = self.fetch_feed_with_improved_headers(source)
+                    feed = self.fetch_feed_with_proxy(source)
                     
                     if not feed or not feed.entries:
                         logger.warning(f"  ❌ No entries from {source['name']}")
@@ -684,8 +521,10 @@ def clean_html_content(self, html_content, max_length=1500):
                     
                     logger.info(f"  📊 Found {len(feed.entries)} entries")
                     
+                    source_saved = 0
+                    
                     # Process articles
-                    max_articles = min(len(feed.entries), 5)  # Limit to 5 per source
+                    max_articles = min(len(feed.entries), FlaskConfig.MAX_ARTICLES_PER_SOURCE)
                     
                     for entry in feed.entries[:max_articles]:
                         try:
@@ -715,7 +554,7 @@ def clean_html_content(self, html_content, max_length=1500):
                             
                             # Get content
                             raw_content = self.get_entry_content(entry)
-                            content = self.clean_html_content(raw_content, 1500)
+                            content = self.clean_html_content(raw_content, 2000)
                             
                             if not content or len(content) < 100:
                                 content = title + ". Read the full article on " + source['name']
@@ -746,20 +585,22 @@ def clean_html_content(self, html_content, max_length=1500):
                                  category_id, source['category'], source['name'], 
                                  random.randint(10, 100), pub_date))
                             
-                            rss_saved += 1
+                            source_saved += 1
                             total_saved += 1
                             
-                            if rss_saved <= 3:
-                                logger.info(f"    ✅ RSS: {title[:70]}...")
+                            if source_saved <= 3:
+                                logger.info(f"    ✅ Saved: {title[:70]}...")
                             
                         except sqlite3.IntegrityError:
                             continue
                         except Exception as e:
-                            logger.debug(f"    RSS article error: {str(e)[:100]}")
+                            logger.debug(f"    Article error: {str(e)[:100]}")
                             continue
                     
-                    if rss_saved > 0:
-                        logger.info(f"✅ {source['name']}: Saved {rss_saved} articles")
+                    if source_saved > 0:
+                        logger.info(f"✅ {source['name']}: Saved {source_saved} new articles")
+                    else:
+                        logger.info(f"ℹ️ {source['name']}: No new articles")
                     
                 except Exception as e:
                     logger.error(f"❌ Source {source['name']} failed: {str(e)[:100]}")
@@ -778,10 +619,6 @@ def clean_html_content(self, html_content, max_length=1500):
                 logger.info(f"🎉 FETCH COMPLETE!")
                 logger.info(f"✅ Total new articles: {total_saved}")
                 logger.info(f"⏱️  Time taken: {elapsed:.2f} seconds")
-                if self.newsapi_available:
-                    logger.info(f"📊 Sources: NewsAPI + RSS feeds")
-                else:
-                    logger.info(f"📊 Sources: RSS feeds only")
             else:
                 logger.info("✅ Fetch complete: No new articles found")
             logger.info("=" * 60)
@@ -813,10 +650,6 @@ print("🚀 Testing fetch on startup...")
 initial_fetched = fetcher.fetch_and_save()
 print(f"✅ Initial fetch: {initial_fetched} articles")
 print(f"⏰ Next fetch in: {FlaskConfig.UPDATE_INTERVAL_MINUTES} minutes")
-if fetcher.newsapi_available:
-    print("✅ NewsAPI: CONFIGURED")
-else:
-    print("⚠️  NewsAPI: NOT CONFIGURED (using RSS only)")
 
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -848,10 +681,7 @@ def get_time_ago(date_str):
             try:
                 post_date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
             except:
-                try:
-                    post_date = datetime.strptime(date_str, '%Y-%m-%d')
-                except:
-                    return "Recently"
+                post_date = datetime.strptime(date_str, '%Y-%m-%d')
         elif isinstance(date_str, datetime):
             post_date = date_str
         else:
@@ -1133,25 +963,9 @@ def sources():
                     'color': source['color'],
                     'icon': source['icon'],
                     'article_count': article_count,
+                    'last_fetch': fetcher.last_fetch_time.strftime('%Y-%m-%d %H:%M') if fetcher.last_fetch_time else 'Never',
                     'status': 'Active' if source.get('enabled', True) else 'Disabled'
                 })
-        
-        # Add NewsAPI as a source if configured
-        if fetcher.newsapi_available:
-            count_row = conn.execute(
-                "SELECT COUNT(*) FROM posts WHERE source_name LIKE '%NewsAPI%' AND is_published = 1"
-            ).fetchone()
-            article_count = count_row[0] if count_row else 0
-            
-            sources_list.append({
-                'name': 'NewsAPI (Multiple Sources)',
-                'url': 'https://newsapi.org',
-                'category': 'news',
-                'color': '#10b981',
-                'icon': 'database',
-                'article_count': article_count,
-                'status': 'Active'
-            })
         
         conn.close()
         
@@ -1293,7 +1107,6 @@ def api_stats():
             'total_views': total_views,
             'categories': categories_count,
             'sources': len([s for s in fetcher.NEWS_SOURCES if s.get('enabled', True)]),
-            'newsapi_configured': fetcher.newsapi_available,
             'last_fetch': fetcher.last_fetch_time.isoformat() if fetcher.last_fetch_time else None,
             'last_fetch_count': fetcher.last_fetch_count,
             'is_fetching': fetcher.is_fetching,
@@ -1340,7 +1153,6 @@ def admin_dashboard():
         'total_views': conn.execute("SELECT SUM(views) FROM posts").fetchone()[0] or 0,
         'categories': conn.execute("SELECT COUNT(*) FROM categories").fetchone()[0],
         'sources': len([s for s in fetcher.NEWS_SOURCES if s.get('enabled', True)]),
-        'newsapi_configured': fetcher.newsapi_available,
         'fetching_status': 'Active' if fetcher.is_fetching else 'Idle',
         'last_fetch': fetcher.last_fetch_time.strftime('%Y-%m-%d %H:%M:%S') if fetcher.last_fetch_time else 'Never',
         'last_fetch_count': fetcher.last_fetch_count,
@@ -1405,7 +1217,7 @@ def start_auto_fetcher():
                     
             except Exception as e:
                 logger.error(f"❌ Background fetch error: {e}")
-                time.sleep(300)  # Wait 5 minutes on error
+                time.sleep(300)
     
     # Start thread
     thread = threading.Thread(target=fetch_loop, daemon=True)
@@ -1435,7 +1247,6 @@ def debug():
         return jsonify({
             'status': 'ok',
             'environment': 'RENDER' if os.environ.get('RENDER') else 'DEVELOPMENT',
-            'newsapi_configured': fetcher.newsapi_available,
             'database': {
                 'path': get_db_path(),
                 'exists': os.path.exists(get_db_path()),
@@ -1472,22 +1283,6 @@ def test_fetch():
     result = fetcher.fetch_and_save()
     return f"<h1>Fetch Test</h1><p>Result: {result} articles fetched</p>"
 
-@app.route('/test-newsapi')
-def test_newsapi():
-    """Test NewsAPI connection"""
-    if not fetcher.newsapi_available:
-        return jsonify({'status': 'error', 'message': 'NewsAPI not configured'})
-    
-    try:
-        articles = fetcher.fetch_from_newsapi()
-        return jsonify({
-            'status': 'success',
-            'articles_count': len(articles),
-            'sample': articles[:3] if articles else []
-        })
-    except Exception as e:
-        return jsonify({'status': 'error', 'error': str(e)})
-
 # ============= START APP =============
 if __name__ == '__main__':
     print(f"🌐 Site URL: {FlaskConfig.SITE_URL}")
@@ -1496,7 +1291,6 @@ if __name__ == '__main__':
     print(f"📱 Phone: {FlaskConfig.CONTACT_PHONE}")
     print(f"💰 AdSense: {'ENABLED' if FlaskConfig.ADSENSE_ENABLED else 'DISABLED'}")
     print(f"📊 Active Sources: {len([s for s in fetcher.NEWS_SOURCES if s.get('enabled', True)])}")
-    print(f"🤖 NewsAPI: {'CONFIGURED' if fetcher.newsapi_available else 'NOT CONFIGURED'}")
     print(f"⏰ Auto-update: Every {FlaskConfig.UPDATE_INTERVAL_MINUTES} minutes")
     print("=" * 60)
     print("🚀 Ready to fetch news from South African sources!")
