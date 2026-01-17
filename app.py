@@ -1,8 +1,8 @@
 # Python 3.13+ compatibility fix
 import fix_cgi
 
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
-from flask_login import LoginManager, login_user, logout_user, login_required, current_user, UserMixin
+
+
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
 import os
@@ -20,7 +20,7 @@ import hashlib
 import requests
 from urllib.parse import urlparse, quote, unquote, urljoin
 import urllib3
-from bs4 import BeautifulSoup
+
 import html
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -437,43 +437,52 @@ class ContentFetcher:
         }
         return fallback_images.get(category, fallback_images['news'])
     
-    def clean_html_content(self, html_content, max_length=1500):
-        """Clean HTML content to plain text"""
-        if not html_content:
-            return ""
+    
+
+
+
+
+# Replace the clean_html_content method in ContentFetcher class:
+def clean_html_content(self, html_content, max_length=1500):
+    """Clean HTML content to plain text - without lxml dependency"""
+    if not html_content:
+        return ""
+    
+    try:
+        # Simple regex-based HTML cleaning
+        # Remove script tags and content
+        text = re.sub(r'<script[^>]*>.*?</script>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
         
-        try:
-            # Parse HTML with BeautifulSoup
-            soup = BeautifulSoup(html_content, 'html.parser')
-            
-            # Remove script and style elements
-            for script in soup(["script", "style", "iframe", "nav", "header", "footer"]):
-                script.decompose()
-            
-            # Get text
-            text = soup.get_text()
-            
-            # Clean up whitespace
-            lines = (line.strip() for line in text.splitlines())
-            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-            text = ' '.join(chunk for chunk in chunks if chunk)
-            
-            # Decode HTML entities
-            text = html.unescape(text)
-            
-            # Truncate if too long
-            if len(text) > max_length:
-                text = text[:max_length] + '...'
-            
-            return text
-            
-        except Exception as e:
-            logger.debug(f"HTML cleaning error: {e}")
-            # Fallback to simple regex cleaning
-            text = re.sub(r'<[^>]+>', '', html_content)
-            text = html.unescape(text)
-            text = ' '.join(text.split())
-            return text[:max_length]
+        # Remove style tags and content
+        text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
+        
+        # Remove other unwanted tags
+        text = re.sub(r'</?(iframe|nav|header|footer|form|input|button)[^>]*>', '', text, flags=re.IGNORECASE)
+        
+        # Remove all remaining HTML tags
+        text = re.sub(r'<[^>]+>', '', text)
+        
+        # Decode HTML entities
+        text = html.unescape(text)
+        
+        # Clean up whitespace
+        text = ' '.join(text.split())
+        
+        # Truncate if too long
+        if len(text) > max_length:
+            text = text[:max_length] + '...'
+        
+        return text
+        
+    except Exception as e:
+        logger.debug(f"HTML cleaning error: {e}")
+        # Fallback to very simple cleaning
+        text = re.sub(r'<[^>]+>', '', html_content)
+        text = html.unescape(text)
+        text = ' '.join(text.split())
+        return text[:max_length]
+
+
     
     def get_entry_content(self, entry):
         """Get content from entry with multiple fallbacks"""
