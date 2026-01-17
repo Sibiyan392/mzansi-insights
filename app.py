@@ -441,19 +441,27 @@ class ContentFetcher:
 
 
 def clean_html_content(self, html_content, max_length=1500):
-    """Clean HTML content to plain text without lxml/BeautifulSoup"""
+    """Clean HTML content to plain text - without any external dependencies"""
     if not html_content:
         return ""
     
     try:
-        # Remove HTML tags using regex
-        text = re.sub(r'<[^>]+>', ' ', html_content)
-        
-        # Remove multiple spaces
-        text = ' '.join(text.split())
+        # Simple HTML tag removal with regex
+        # Remove script tags
+        text = re.sub(r'<script[^>]*>.*?</script>', '', html_content, flags=re.DOTALL | re.IGNORECASE)
+        # Remove style tags
+        text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL | re.IGNORECASE)
+        # Remove HTML comments
+        text = re.sub(r'<!--.*?-->', '', text, flags=re.DOTALL)
+        # Remove all other HTML tags
+        text = re.sub(r'<[^>]+>', ' ', text)
         
         # Decode HTML entities
+        import html
         text = html.unescape(text)
+        
+        # Clean up whitespace
+        text = ' '.join(text.split())
         
         # Truncate if too long
         if len(text) > max_length:
@@ -463,10 +471,11 @@ def clean_html_content(self, html_content, max_length=1500):
         
     except Exception as e:
         logger.debug(f"HTML cleaning error: {e}")
-        # Simple fallback
-        text = html.unescape(html_content)
+        # Ultra simple fallback
+        text = str(html_content)
         text = text.replace('<', ' ').replace('>', ' ')
-        return ' '.join(text.split())[:max_length]
+        text = ' '.join(text.split())
+        return text[:max_length]
 
     
     

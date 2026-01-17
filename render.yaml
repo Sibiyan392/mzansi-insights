@@ -2,6 +2,8 @@ services:
   - type: web
     name: mzansi-insights
     env: python
+    region: ohio  # or your preferred region
+    plan: free
     buildCommand: |
       python -m pip install --upgrade pip
       pip install -r requirements.txt
@@ -9,4 +11,4 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.10
-    plan: free
+    autoDeploy: true
