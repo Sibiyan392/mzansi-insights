@@ -1,32 +1,33 @@
-# cgi_fix.py - Fix for Python 3.13+ cgi module deprecation
-import sys
-import email
-import email.policy
+"""
+Fix for cgi module removal in Python 3.13
+"""
 
-# Monkey patch for feedparser compatibility
-if sys.version_info >= (3, 13):
-    import cgi
-    
-    # Create a replacement for parse_header
-    def parse_header(value):
-        """Parse a Content-Type like header."""
-        if not value:
-            return '', {}
-        
-        # Parse with email module
-        msg = email.message_from_string(f'Content-Type: {value}', 
-                                       policy=email.policy.default)
-        main_type = msg.get_content_type()
-        params = dict(msg.get_params())
-        
-        return main_type, params
-    
-    # Monkey patch cgi module
-    cgi.parse_header = parse_header
-    
-    # Also patch if feedparser imports it directly
-    sys.modules['cgi'].parse_header = parse_header
-    
-    print("✅ Applied cgi module fix for Python 3.13+")
+import sys
+
+# Check Python version
+python_version = sys.version_info
+
+if python_version.major == 3 and python_version.minor >= 13:
+    # Python 3.13+ - cgi module was removed
+    # Create a minimal mock or use alternatives
+    try:
+        # Try to import from cgi module (if available)
+        import cgi
+    except ImportError:
+        # Create minimal mock for cgi module
+        class FieldStorage:
+            def __init__(self, fp=None, headers=None, outerboundary=b'',
+                        environ=os.environ, keep_blank_values=0, strict_parsing=0):
+                self.list = []
+                
+        class MiniMock:
+            FieldStorage = FieldStorage
+            
+        # Inject into sys.modules
+        import types
+        cgi = types.ModuleType('cgi')
+        cgi.FieldStorage = FieldStorage
+        sys.modules['cgi'] = cgi
 else:
-    print("ℹ️ Python version < 3.13, no cgi fix needed")
+    # Python < 3.13 - import normally
+    import cgi

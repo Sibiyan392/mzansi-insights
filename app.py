@@ -1,5 +1,4 @@
-# Python 3.13+ compatibility fix
-import fix_cgi
+
 
 
 
