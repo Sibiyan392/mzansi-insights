@@ -2,13 +2,12 @@ services:
   - type: web
     name: mzansi-insights
     env: python
-    region: ohio  # or your preferred region
-    plan: free
-    buildCommand: |
-      python -m pip install --upgrade pip
-      pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app:app
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.10
-    autoDeploy: true
+        value: 3.9.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SITE_URL
+        value: https://mzansi-insights.onrender.com

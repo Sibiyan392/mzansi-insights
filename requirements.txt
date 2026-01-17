@@ -1,20 +1,9 @@
 ﻿Flask==2.3.3
-Flask-Login==0.6.2
-Werkzeug==2.3.7
+flask-login==0.6.2
 feedparser==6.0.10
+beautifulsoup4==4.12.2
 requests==2.31.0
 gunicorn==20.1.0
 python-dotenv==1.0.0
-markupsafe==2.1.5
-itsdangerous==2.1.2
-click==8.1.7
-Jinja2==3.1.6
-blinker==1.9.0
-charset-normalizer==3.4.4
-idna==3.11
-urllib3==2.6.3
-certifi==2026.1.4
-setuptools==69.5.1
-soupsieve==2.8.1
-sgmllib3k==1.0.0
- lxml==6.0.2
+werkzeug==2.3.7
+
