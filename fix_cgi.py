@@ -1,88 +1,162 @@
 # fix_cgi.py
 """
-Fix for Python 3.13+ where cgi module was deprecated and removed.
-Provides compatibility shims for feedparser and other libraries.
+Fix for Python 3.13+ where cgi module was completely removed.
+Monkey patches feedparser and other libraries that depend on cgi.
 """
 
 import sys
-import email
-from email.message import EmailMessage
+import types
 
-print("Patching cgi module for Python 3.13+...")
+print("=" * 60)
+print("PATCHING CGI MODULE FOR PYTHON 3.13+")
+print("=" * 60)
 
-# Monkey patch cgi module if it's missing parse_header
-try:
-    import cgi
-    # Test if parse_header exists
-    cgi.parse_header
-except AttributeError:
-    # Create minimal cgi module replacement
-    class FakeCGIModule:
-        @staticmethod
-        def parse_header(value):
-            """Parse Content-Type like headers."""
-            if not value:
-                return '', {}
-            
-            # Simple parsing
-            parts = value.split(';', 1)
-            main_type = parts[0].strip().lower()
-            
-            params = {}
-            if len(parts) > 1:
-                # Parse parameters like charset=utf-8
-                param_parts = parts[1].split(';')
-                for param in param_parts:
-                    if '=' in param:
-                        key, val = param.split('=', 1)
-                        params[key.strip()] = val.strip().strip('"\'')
-            
-            return main_type, params
-    
-    # Replace cgi module with our fake one
-    import types
-    sys.modules['cgi'] = types.ModuleType('cgi')
-    sys.modules['cgi'].parse_header = FakeCGIModule.parse_header
-    
-    # Also patch it directly for feedparser
-    import feedparser
-    feedparser._cgi = sys.modules['cgi']
-    
-    print("✅ cgi module patched successfully")
+# Check Python version
+print(f"Python version: {sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}")
 
-# Alternative: Direct patch for feedparser
-def patch_feedparser():
-    """Patch feedparser to use email module instead of cgi."""
-    import feedparser
-    from email.message import EmailMessage
+# Create a minimal cgi module replacement
+class FakeCGIModule:
+    """Minimal replacement for the removed cgi module."""
     
-    original_parse = feedparser._parse_content_type
-    
-    def patched_parse_content_type(headers):
-        """Use email module instead of cgi."""
-        content_type = headers.get('content-type', '')
-        if not content_type:
+    @staticmethod
+    def parse_header(value):
+        """Parse Content-Type like headers (simplified version)."""
+        if not value:
             return '', {}
         
         try:
-            msg = EmailMessage()
-            msg['Content-Type'] = content_type
-            main_type = msg.get_content_type()
+            # Remove any leading/trailing whitespace
+            value = value.strip()
             
-            # Extract params
-            params = {}
-            for key, value in msg.get_params():
-                if key and value and key != 'charset':
-                    params[key] = value
+            # Split main type from parameters
+            if ';' in value:
+                main_type, param_str = value.split(';', 1)
+                main_type = main_type.strip().lower()
+                
+                # Parse parameters
+                params = {}
+                param_parts = param_str.split(';')
+                for param in param_parts:
+                    param = param.strip()
+                    if '=' in param:
+                        key, val = param.split('=', 1)
+                        key = key.strip()
+                        val = val.strip()
+                        # Remove quotes if present
+                        if (val.startswith('"') and val.endswith('"')) or \
+                           (val.startswith("'") and val.endswith("'")):
+                            val = val[1:-1]
+                        params[key] = val
+                
+                return main_type, params
+            else:
+                return value.lower(), {}
+                
+        except Exception as e:
+            print(f"parse_header error: {e}")
+            return value.lower(), {}
+    
+    @staticmethod
+    def parse_multipart(*args, **kwargs):
+        """Stub for parse_multipart."""
+        raise NotImplementedError("parse_multipart not implemented in cgi replacement")
+    
+    @staticmethod
+    def parse_qs(*args, **kwargs):
+        """Stub for parse_qs."""
+        raise NotImplementedError("parse_qs not implemented in cgi replacement")
+    
+    @staticmethod
+    def escape(s, quote=True):
+        """Simple HTML escaping."""
+        s = s.replace("&", "&amp;")
+        s = s.replace("<", "&lt;")
+        s = s.replace(">", "&gt;")
+        if quote:
+            s = s.replace('"', "&quot;")
+            s = s.replace("'", "&#x27;")
+        return s
+
+# Create and install the fake cgi module BEFORE importing feedparser
+print("Creating fake cgi module...")
+cgi_module = types.ModuleType('cgi')
+cgi_module.parse_header = FakeCGIModule.parse_header
+cgi_module.parse_multipart = FakeCGIModule.parse_multipart
+cgi_module.parse_qs = FakeCGIModule.parse_qs
+cgi_module.escape = FakeCGIModule.escape
+cgi_module.__version__ = "3.13+ compatibility layer"
+
+# Install it in sys.modules
+sys.modules['cgi'] = cgi_module
+print("✅ Fake cgi module created and installed")
+
+# Now patch feedparser's internal imports
+def patch_feedparser_internals():
+    """Patch feedparser's internal imports to use our fake cgi module."""
+    try:
+        # Import feedparser AFTER we've installed our fake cgi
+        import feedparser
+        
+        # Patch feedparser's internal cgi reference
+        if hasattr(feedparser, '_cgi'):
+            feedparser._cgi = cgi_module
+            print("✅ Patched feedparser._cgi")
+        
+        # Also patch the encodings module if needed
+        if hasattr(feedparser, 'encodings'):
+            try:
+                feedparser.encodings.cgi = cgi_module
+                print("✅ Patched feedparser.encodings.cgi")
+            except:
+                pass
+        
+        print("✅ Feedparser patched successfully")
+        
+    except Exception as e:
+        print(f"⚠️  Warning: Could not patch feedparser: {e}")
+        # Try to patch at the module level
+        try:
+            # Manually patch the feedparser.encodings module
+            import feedparser.encodings as encodings_module
+            encodings_module.cgi = cgi_module
+            print("✅ Manually patched feedparser.encodings.cgi")
+        except:
+            pass
+
+# Also create a direct patch for the parse_header function used by feedparser
+def create_cgi_parse_header_patch():
+    """Create a direct replacement for the parse_header function."""
+    import email
+    from email.message import EmailMessage
+    
+    def patched_parse_header(value):
+        """Alternative implementation using email module."""
+        if not value:
+            return '', {}
+        
+        try:
+            # Use email module for more robust parsing
+            msg = EmailMessage()
+            msg['Content-Type'] = value
+            
+            main_type = msg.get_content_type()
+            params = dict(msg.get_params())
+            
+            # Remove None values and charset
+            params = {k: v for k, v in params.items() 
+                     if v is not None and k != 'charset'}
             
             return main_type, params
+            
         except:
             # Fallback to simple parsing
-            return original_parse(headers)
+            return FakeCGIModule.parse_header(value)
     
-    feedparser._parse_content_type = patched_parse_content_type
-    print("✅ Feedparser patched successfully")
+    return patched_parse_header
 
-# Run the patches
+# Apply all patches
 if __name__ == '__main__':
-    patch_feedparser()
+    patch_feedparser_internals()
+    print("=" * 60)
+    print("CGI PATCHING COMPLETE")
+    print("=" * 60)
